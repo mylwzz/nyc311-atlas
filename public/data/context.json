@@ -1,0 +1,353 @@
+{
+  "schemaVersion": "4.0.0",
+  "modelVersion": "atlas-v4",
+  "artifactSetId": "20260715T045848Z-30e0e7f5",
+  "serviceDomains": {
+    "noise": {
+      "label": "Noise",
+      "countMetric": "Noise Complaints",
+      "intensityMetric": "Noise Complaints_Per_1000_People",
+      "propertyPrefix": "noise"
+    },
+    "housing_building": {
+      "label": "Housing & Building",
+      "countMetric": "Housing and Building Complaints",
+      "intensityMetric": "Housing and Building Complaints_Per_1000_People",
+      "propertyPrefix": "housingBuilding"
+    },
+    "sanitation_environmental": {
+      "label": "Sanitation & Environmental",
+      "countMetric": "Sanitation and Environmental Complaints",
+      "intensityMetric": "Sanitation and Environmental Complaints_Per_1000_People",
+      "propertyPrefix": "sanitationEnvironmental"
+    },
+    "street_infrastructure": {
+      "label": "Street & Infrastructure",
+      "countMetric": "Street and Infrastructure Complaints",
+      "intensityMetric": "Street and Infrastructure Complaints_Per_1000_People",
+      "propertyPrefix": "streetInfrastructure"
+    },
+    "public_safety_quality_of_life": {
+      "label": "Public Safety & Quality of Life",
+      "countMetric": "Public Safety and Quality of Life Complaints",
+      "intensityMetric": "Public Safety and Quality of Life Complaints_Per_1000_People",
+      "propertyPrefix": "publicSafetyQualityOfLife"
+    }
+  },
+  "scalingModes": {
+    "rank_balanced": {
+      "label": "Rank-balanced",
+      "description": "Uses percentile ranks so complaint intensity and lower-income priority occupy the same 0–1 scale."
+    },
+    "magnitude_sensitive": {
+      "label": "Magnitude-sensitive",
+      "description": "Uses z-scores so exceptionally extreme values retain additional influence based on their magnitude."
+    }
+  },
+  "incomeQuintileAnalysis": {
+    "noise": {
+      "label": "Noise",
+      "eligibleTractCount": 2093,
+      "meanTractComplaintIntensityByIncomeQuintile": {
+        "Q1_low": 61.97506665984102,
+        "Q2": 49.02051758118228,
+        "Q3": 43.283414721404796,
+        "Q4": 37.513036072411914,
+        "Q5_high": 46.83072678705291
+      },
+      "medianTractComplaintIntensityByIncomeQuintile": {
+        "Q1_low": 49.242981037777454,
+        "Q2": 36.1189700025495,
+        "Q3": 29.037610619469028,
+        "Q4": 25.120109020886385,
+        "Q5_high": 27.8910105127655
+      },
+      "complaintCountByIncomeQuintile": {
+        "Q1_low": 124194,
+        "Q2": 89534,
+        "Q3": 66385,
+        "Q4": 56724,
+        "Q5_high": 76570
+      },
+      "populationByIncomeQuintile": {
+        "Q1_low": 2012975,
+        "Q2": 1756336,
+        "Q3": 1506991,
+        "Q4": 1460528,
+        "Q5_high": 1708324
+      },
+      "q1OverQ5MeanIntensityRatio": 1.323384685906156,
+      "q1MinusQ5MeanIntensity": 15.144339872788109,
+      "pearsonIncomeIntensityCorrelation": -0.03648568035704143,
+      "spearmanIncomeIntensityCorrelation": -0.22081461770676286
+    },
+    "housing_building": {
+      "label": "Housing & Building",
+      "eligibleTractCount": 2093,
+      "meanTractComplaintIntensityByIncomeQuintile": {
+        "Q1_low": 120.30766769120396,
+        "Q2": 103.46825287733854,
+        "Q3": 63.00037925658457,
+        "Q4": 47.27528805007997,
+        "Q5_high": 39.72482102654612
+      },
+      "medianTractComplaintIntensityByIncomeQuintile": {
+        "Q1_low": 111.68915623475857,
+        "Q2": 86.2728978159852,
+        "Q3": 49.251078954049255,
+        "Q4": 37.413628641157004,
+        "Q5_high": 29.602420051858253
+      },
+      "complaintCountByIncomeQuintile": {
+        "Q1_low": 241084,
+        "Q2": 186920,
+        "Q3": 100457,
+        "Q4": 71622,
+        "Q5_high": 69254
+      },
+      "populationByIncomeQuintile": {
+        "Q1_low": 2012975,
+        "Q2": 1756336,
+        "Q3": 1506991,
+        "Q4": 1460528,
+        "Q5_high": 1708324
+      },
+      "q1OverQ5MeanIntensityRatio": 3.028526361662104,
+      "q1MinusQ5MeanIntensity": 80.58284666465784,
+      "pearsonIncomeIntensityCorrelation": -0.3744372934695044,
+      "spearmanIncomeIntensityCorrelation": -0.4436060954077786
+    },
+    "sanitation_environmental": {
+      "label": "Sanitation & Environmental",
+      "eligibleTractCount": 2093,
+      "meanTractComplaintIntensityByIncomeQuintile": {
+        "Q1_low": 31.012913100282624,
+        "Q2": 39.73412034397476,
+        "Q3": 43.71321033578051,
+        "Q4": 51.471253887249944,
+        "Q5_high": 55.19152540830203
+      },
+      "medianTractComplaintIntensityByIncomeQuintile": {
+        "Q1_low": 27.34731084776664,
+        "Q2": 34.16338937527671,
+        "Q3": 39.514866979655714,
+        "Q4": 48.86244545645091,
+        "Q5_high": 52.67008046817849
+      },
+      "complaintCountByIncomeQuintile": {
+        "Q1_low": 57422,
+        "Q2": 60372,
+        "Q3": 59154,
+        "Q4": 71476,
+        "Q5_high": 80743
+      },
+      "populationByIncomeQuintile": {
+        "Q1_low": 2012975,
+        "Q2": 1756336,
+        "Q3": 1506991,
+        "Q4": 1460528,
+        "Q5_high": 1708324
+      },
+      "q1OverQ5MeanIntensityRatio": 0.5619144039026251,
+      "q1MinusQ5MeanIntensity": -24.178612308019403,
+      "pearsonIncomeIntensityCorrelation": 0.2923653256455685,
+      "spearmanIncomeIntensityCorrelation": 0.3936994717626692
+    },
+    "street_infrastructure": {
+      "label": "Street & Infrastructure",
+      "eligibleTractCount": 2093,
+      "meanTractComplaintIntensityByIncomeQuintile": {
+        "Q1_low": 51.152207533896664,
+        "Q2": 78.90813447129149,
+        "Q3": 97.8821905430875,
+        "Q4": 94.89017665465123,
+        "Q5_high": 93.37286837533182
+      },
+      "medianTractComplaintIntensityByIncomeQuintile": {
+        "Q1_low": 41.296625222024865,
+        "Q2": 67.78578811465238,
+        "Q3": 82.61515601783061,
+        "Q4": 87.57640793689795,
+        "Q5_high": 80.23426061493412
+      },
+      "complaintCountByIncomeQuintile": {
+        "Q1_low": 87629,
+        "Q2": 113319,
+        "Q3": 126164,
+        "Q4": 126189,
+        "Q5_high": 132095
+      },
+      "populationByIncomeQuintile": {
+        "Q1_low": 2012975,
+        "Q2": 1756336,
+        "Q3": 1506991,
+        "Q4": 1460528,
+        "Q5_high": 1708324
+      },
+      "q1OverQ5MeanIntensityRatio": 0.547827312408136,
+      "q1MinusQ5MeanIntensity": -42.220660841435155,
+      "pearsonIncomeIntensityCorrelation": 0.19141901185587365,
+      "spearmanIncomeIntensityCorrelation": 0.34931176761587895
+    },
+    "public_safety_quality_of_life": {
+      "label": "Public Safety & Quality of Life",
+      "eligibleTractCount": 2093,
+      "meanTractComplaintIntensityByIncomeQuintile": {
+        "Q1_low": 18.88055629734838,
+        "Q2": 17.662252014916525,
+        "Q3": 15.54123355977963,
+        "Q4": 15.017962823467109,
+        "Q5_high": 41.10114900579056
+      },
+      "medianTractComplaintIntensityByIncomeQuintile": {
+        "Q1_low": 14.739517153748412,
+        "Q2": 14.720558855810554,
+        "Q3": 11.170752937762948,
+        "Q4": 9.188546893957904,
+        "Q5_high": 13.14730346122887
+      },
+      "complaintCountByIncomeQuintile": {
+        "Q1_low": 33383,
+        "Q2": 29425,
+        "Q3": 22207,
+        "Q4": 23002,
+        "Q5_high": 61204
+      },
+      "populationByIncomeQuintile": {
+        "Q1_low": 2012975,
+        "Q2": 1756336,
+        "Q3": 1506991,
+        "Q4": 1460528,
+        "Q5_high": 1708324
+      },
+      "q1OverQ5MeanIntensityRatio": 0.4593680895560458,
+      "q1MinusQ5MeanIntensity": -22.22059270844218,
+      "pearsonIncomeIntensityCorrelation": 0.23764074562150364,
+      "spearmanIncomeIntensityCorrelation": -0.05511377782087693
+    }
+  },
+  "boroughProfiles": {
+    "Bronx County": {
+      "borough": "Bronx",
+      "county": "Bronx County",
+      "population": 1436785,
+      "median_household_income": 35302,
+      "complaint_counts": {
+        "Noise Complaints": 77752,
+        "Housing and Building Complaints": 197960,
+        "Sanitation and Environmental Complaints": 44353,
+        "Street and Infrastructure Complaints": 75043,
+        "Public Safety and Quality of Life Complaints": 20950
+      },
+      "complaint_rates_per_1000": {
+        "Noise Complaints": 54.12,
+        "Housing and Building Complaints": 137.78,
+        "Sanitation and Environmental Complaints": 30.87,
+        "Street and Infrastructure Complaints": 52.23,
+        "Public Safety and Quality of Life Complaints": 14.58
+      }
+    },
+    "Kings County": {
+      "borough": "Brooklyn",
+      "county": "Kings County",
+      "population": 2606852,
+      "median_household_income": 50640,
+      "complaint_counts": {
+        "Noise Complaints": 125635,
+        "Housing and Building Complaints": 216352,
+        "Sanitation and Environmental Complaints": 101036,
+        "Street and Infrastructure Complaints": 200537,
+        "Public Safety and Quality of Life Complaints": 40831
+      },
+      "complaint_rates_per_1000": {
+        "Noise Complaints": 48.19,
+        "Housing and Building Complaints": 82.99,
+        "Sanitation and Environmental Complaints": 38.76,
+        "Street and Infrastructure Complaints": 76.93,
+        "Public Safety and Quality of Life Complaints": 15.66
+      }
+    },
+    "New York County": {
+      "borough": "Manhattan",
+      "county": "New York County",
+      "population": 1634989,
+      "median_household_income": 75513,
+      "complaint_counts": {
+        "Noise Complaints": 132897,
+        "Housing and Building Complaints": 143530,
+        "Sanitation and Environmental Complaints": 56217,
+        "Street and Infrastructure Complaints": 71888,
+        "Public Safety and Quality of Life Complaints": 83868
+      },
+      "complaint_rates_per_1000": {
+        "Noise Complaints": 81.28,
+        "Housing and Building Complaints": 87.79,
+        "Sanitation and Environmental Complaints": 34.38,
+        "Street and Infrastructure Complaints": 43.97,
+        "Public Safety and Quality of Life Complaints": 51.3
+      }
+    },
+    "Queens County": {
+      "borough": "Queens",
+      "county": "Queens County",
+      "population": 2310011,
+      "median_household_income": 59758,
+      "complaint_counts": {
+        "Noise Complaints": 70347,
+        "Housing and Building Complaints": 98537,
+        "Sanitation and Environmental Complaints": 99657,
+        "Street and Infrastructure Complaints": 202563,
+        "Public Safety and Quality of Life Complaints": 27486
+      },
+      "complaint_rates_per_1000": {
+        "Noise Complaints": 30.45,
+        "Housing and Building Complaints": 42.66,
+        "Sanitation and Environmental Complaints": 43.14,
+        "Street and Infrastructure Complaints": 87.69,
+        "Public Safety and Quality of Life Complaints": 11.9
+      }
+    },
+    "Richmond County": {
+      "borough": "Staten Island",
+      "county": "Richmond County",
+      "population": 473324,
+      "median_household_income": 74021,
+      "complaint_counts": {
+        "Noise Complaints": 10586,
+        "Housing and Building Complaints": 14296,
+        "Sanitation and Environmental Complaints": 31397,
+        "Street and Infrastructure Complaints": 45369,
+        "Public Safety and Quality of Life Complaints": 3903
+      },
+      "complaint_rates_per_1000": {
+        "Noise Complaints": 22.37,
+        "Housing and Building Complaints": 30.2,
+        "Sanitation and Environmental Complaints": 66.33,
+        "Street and Infrastructure Complaints": 95.85,
+        "Public Safety and Quality of Life Complaints": 8.25
+      }
+    }
+  },
+  "boroughContextMetadata": {
+    "population": {
+      "dataset": "2012–2016 ACS 5-year via local NHGIS extract",
+      "source_field": "AF2LE001",
+      "source_geography": "census tract",
+      "aggregation": "sum of all tract population estimates within each NYC county",
+      "allocation_population_filter_applied": false,
+      "limitation": "This is a derived sum of tract-level estimates and may differ slightly from an independently published county-level population estimate."
+    },
+    "median_household_income": {
+      "dataset": "2012–2016 ACS 5-year",
+      "variable": "B19013_001E",
+      "source_geography": "county",
+      "aggregation": null,
+      "note": "Values are official county-level estimates and are not calculated from tract medians."
+    },
+    "complaint_rate": {
+      "numerator": "successfully spatially matched 2016 requests within the borough",
+      "denominator": "derived borough population from summed tract-level AF2LE001 estimates",
+      "unit": "requests per 1,000 residents"
+    }
+  }
+}

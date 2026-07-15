@@ -1,0 +1,174 @@
+{
+  "schemaVersion": "4.0.0",
+  "modelVersion": "atlas-v4",
+  "artifactSetId": "20260715T045848Z-30e0e7f5",
+  "project": "NYC 311 Priority Atlas",
+  "productDefinition": "An explorer-first urban-service intelligence workspace with embedded comparison, deterministic selection scenarios, historical workload replay, a scenario sandbox, and an optional Claude assistant.",
+  "defaults": {
+    "domainKey": "housing_building",
+    "scalingMode": "rank_balanced",
+    "k": 100,
+    "alphaIntensity": 0.5
+  },
+  "methodology": {
+    "decisionUnit": "census tract",
+    "portfolioSize": {
+      "symbol": "K",
+      "supportedValues": [
+        25,
+        50,
+        100,
+        150,
+        200
+      ],
+      "definition": "Number of census tracts in an analytical selection scenario."
+    },
+    "priorityBalance": {
+      "alphaValues": [
+        0.0,
+        0.1,
+        0.2,
+        0.3,
+        0.4,
+        0.5,
+        0.6,
+        0.7,
+        0.8,
+        0.9,
+        1.0
+      ],
+      "formulaRankBalanced": "alpha × complaint-intensity percentile + (1 - alpha) × lower-income-priority percentile",
+      "formulaMagnitudeSensitive": "alpha × complaint-intensity z-score + (1 - alpha) × lower-income-priority z-score"
+    },
+    "selectionRule": "Score all 2,093 eligible tracts and select the top K with GEOID as a deterministic tie-breaker.",
+    "responseMetrics": "Recorded administrative closure excludes invalid negative-duration records and uses at least 30 known outcomes for tract comparison.",
+    "workloadReplay": "Actual 2016 30-day arrival cohorts are carried forward using the tract-domain recorded-closure curve by request age.",
+    "uncertainty": "Empirical resampling of complete 30-day arrival periods plus a Jeffreys beta posterior for recorded-closure probability.",
+    "neighborGraph": "Queen contiguity. The browser derives 1–5-hop neighborhoods from direct neighbor lists."
+  },
+  "metricDefinitions": {
+    "mappedComplaintVolumeCapturedPct": "Share of mapped requests in the active domain located in selected tracts.",
+    "recordedClosureWithin30dPct": "Share of requests with known timing outcomes recorded closed within 30 days.",
+    "mean30dArrivals": "Mean request count across the twelve complete 30-day arrival periods in 2016.",
+    "openAt30d": "Expected requests still without recorded closure when a mean 30-day arrival cohort reaches age 30.",
+    "openAt180d": "Expected requests still without recorded closure when the same 30-day arrival cohort reaches age 180.",
+    "netOpenChange": "Current period expected open balance minus the prior period expected open balance.",
+    "intensityRetentionVsRateMaxPct": "Selected sum of tract complaint rates divided by the highest possible rate sum at the same K."
+  },
+  "assistantDelegation": {
+    "deterministicSystemResponsibilities": [
+      "calculate model components and tract scores",
+      "rank tracts and select the top K",
+      "calculate scenario, comparison, spatial, response, and workload metrics",
+      "search the supported scenario library",
+      "calculate which tracts entered, exited, or remained selected",
+      "calculate workload replays and sandbox outputs from explicit assumptions",
+      "calculate uncertainty from exported historical counts and beta parameters"
+    ],
+    "claudeResponsibilities": [
+      "parse natural-language intent into supported controls",
+      "explain deterministic tract, neighborhood, scenario, and workload results",
+      "summarize changes between supported scenarios",
+      "generate clearly labeled hypotheses from supplied evidence",
+      "explain methodology, uncertainty, and limitations",
+      "draft an evidence-grounded investigation brief without claiming causality"
+    ],
+    "humanResponsibilities": [
+      "choose domains, layers, tracts, scoring assumptions, and workload assumptions",
+      "review model and uncertainty assumptions",
+      "decide whether to pin, compare, save, export, or act on analysis",
+      "supply operational context absent from the data"
+    ],
+    "prohibitedClaudeActions": [
+      "recalculate or alter selected tract membership",
+      "invent unsupported scenarios, figures, causes, or current conditions",
+      "claim a recorded closure proves physical resolution",
+      "claim a historical replay is a future or causal forecast",
+      "convert K into staffing, budget, inspections, or case capacity",
+      "declare a normative best scenario without user criteria",
+      "silently change or apply user controls"
+    ]
+  },
+  "limitations": [
+    {
+      "id": "historical_snapshot",
+      "title": "Historical snapshot",
+      "statement": "The analysis reflects 2016 conditions and is not a current NYC operational recommendation."
+    },
+    {
+      "id": "reporting_behavior",
+      "title": "Reporting behavior",
+      "statement": "311 records reflect both underlying conditions and reporting behavior. Complaint activity is not a direct measurement of true need."
+    },
+    {
+      "id": "administrative_closure_semantics",
+      "title": "Administrative closure semantics",
+      "statement": "Closed Date records administrative closure and does not necessarily mean the physical condition was fully resolved."
+    },
+    {
+      "id": "sparse_tract_domain_response",
+      "title": "Sparse tract-domain response samples",
+      "statement": "Every tract-domain pair is retained, including zero-request and low-sample combinations. Tract-specific closure curves and workload replay are suppressed below 30 known timing outcomes. The product does not silently treat missing or sparse closure evidence as a zero closure rate."
+    },
+    {
+      "id": "invalid_closure_dates",
+      "title": "Invalid closure timing",
+      "statement": "Approximately 0.5% of matched requests have a Closed Date earlier than Created Date. They are excluded from closure-time measures; anomalies are concentrated in Street & Infrastructure."
+    },
+    {
+      "id": "workload_history",
+      "title": "Historical period pattern",
+      "statement": "The workload model uses actual 30-day arrival periods from one year. It describes the 2016 period pattern, not stable seasonality or a future arrival forecast."
+    },
+    {
+      "id": "request_age",
+      "title": "Request-age interpretation",
+      "statement": "Open at 180 days means the surviving portion of one 30-day arrival cohort when requests reach 180 days old. It is not 180 days of accumulated new arrivals."
+    },
+    {
+      "id": "uncertainty_scope",
+      "title": "Uncertainty scope",
+      "statement": "Intervals reflect within-2016 period variation and uncertainty in recorded-closure rates. They do not capture future structural changes."
+    },
+    {
+      "id": "partial_period",
+      "title": "Partial final period",
+      "statement": "The final 2016 arrival period contains six days. It is shown in the historical pattern but is excluded from full-period resampling."
+    },
+    {
+      "id": "nycha_coverage",
+      "title": "Incomplete public-housing repair coverage",
+      "statement": "Standard 311 housing data do not fully represent public-housing in-unit repair workflows."
+    },
+    {
+      "id": "observational",
+      "title": "Observational analysis",
+      "statement": "The analysis identifies descriptive patterns, selection tradeoffs, and assumption-based projections. It does not estimate causal effects."
+    },
+    {
+      "id": "portfolio_size_abstraction",
+      "title": "Portfolio size is not operational capacity",
+      "statement": "K is the number of tracts in an analytical selection scenario. It is not staffing, budget, inspections, cases, or intervention capacity."
+    },
+    {
+      "id": "population_threshold",
+      "title": "Low-population tract exclusion",
+      "statement": "Tracts with fewer than 500 residents remain visible but are excluded from prioritization because small denominators can create unstable per-capita rates."
+    },
+    {
+      "id": "missing_income",
+      "title": "Missing income data",
+      "statement": "Six population-eligible tracts lack the median household income required by the two-component score and remain visible but ineligible."
+    },
+    {
+      "id": "scaling_choice",
+      "title": "Scaling is a substantive model choice",
+      "statement": "Rank-balanced percentile scaling and Magnitude-sensitive z-score scaling can produce materially different selected sets."
+    },
+    {
+      "id": "geographic_aggregation",
+      "title": "Geographic aggregation",
+      "statement": "Census-tract summaries can obscure variation within a tract."
+    }
+  ]
+}

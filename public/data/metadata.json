@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "4.0.0",
+  "modelVersion": "atlas-v4",
+  "artifactSetId": "20260715T045848Z-30e0e7f5",
+  "project": "NYC 311 Priority Atlas",
+  "generatedAtUtc": "2026-07-15T04:59:00.236316+00:00",
+  "snapshotYear": 2016,
+  "defaults": {
+    "domainKey": "housing_building",
+    "scalingMode": "rank_balanced",
+    "k": 100,
+    "alphaIntensity": 0.5
+  },
+  "sources": {
+    "serviceRequests": "NYC 311 Service Requests, 2016 creation cohort",
+    "tractDemographics": "2012–2016 ACS 5-year via local NHGIS extract",
+    "tractGeometry": "TIGER/Line census tracts",
+    "boroughIncome": "2012–2016 ACS 5-year county-level B19013_001E estimates"
+  },
+  "scenarioGrid": {
+    "scalingModes": [
+      "rank_balanced",
+      "magnitude_sensitive"
+    ],
+    "serviceDomains": [
+      "noise",
+      "housing_building",
+      "sanitation_environmental",
+      "street_infrastructure",
+      "public_safety_quality_of_life"
+    ],
+    "kValues": [
+      25,
+      50,
+      100,
+      150,
+      200
+    ],
+    "alphaValues": [
+      0.0,
+      0.1,
+      0.2,
+      0.3,
+      0.4,
+      0.5,
+      0.6,
+      0.7,
+      0.8,
+      0.9,
+      1.0
+    ],
+    "totalScenarios": 550
+  },
+  "eligibility": {
+    "allMapTracts": 2167,
+    "populationThreshold": 500,
+    "allocationEligibleTracts": 2093
+  },
+  "workload": {
+    "periodDays": 30,
+    "arrivalPeriods": 13,
+    "fullArrivalPeriods": 12,
+    "ageCheckpointsDays": [
+      30,
+      60,
+      90,
+      120,
+      150,
+      180,
+      210,
+      240,
+      270,
+      300,
+      330,
+      360,
+      390,
+      420,
+      450,
+      480,
+      510,
+      540,
+      570
+    ],
+    "uncertaintyDraws": 1000,
+    "minimumComparisonSample": 30,
+    "sparseTractDomainFallback": null,
+    "aggregatePoolingAllowed": true,
+    "zeroIsNeverMissingClosureProbability": true,
+    "usesActualHistoricalArrivalPeriods": true,
+    "usesRecordedAdministrativeClosure": true,
+    "isFutureForecast": false,
+    "isCausalInterventionModel": false,
+    "isFullAgencyBacklog": false
+  },
+  "dataAudit": {
+    "raw_311_rows": 2409019,
+    "raw_acs_rows": 74002,
+    "raw_tiger_tract_rows": 4918,
+    "acs_rows_after_identifier_row_removed": 74001,
+    "nyc_acs_tract_rows_before_tiger_merge": 2167,
+    "requests_with_parseable_created_date": 2409019,
+    "requests_2016": 2409019,
+    "requests_2016_missing_coordinates": 215832,
+    "requests_2016_with_valid_coordinates": 2193187,
+    "requests_classified_into_five_domains": 2193187,
+    "requests_classified_as_other": 0,
+    "complaint_types_observed": 182,
+    "complaint_types_mapped_to_five_domains": 182,
+    "requests_spatially_matched_to_tract": 2192990,
+    "requests_not_matched_to_tract": 197,
+    "requests_retained_after_spatial_match": 2192990,
+    "all_map_tracts": 2167,
+    "tracts_before_population_filter": 2167,
+    "tracts_after_population_filter": 2099,
+    "tracts_removed_by_population_filter": 68,
+    "population_threshold": 500,
+    "allMapTracts": 2167,
+    "populationFilteredTracts": 2099,
+    "allocationEligibleTracts": 2093,
+    "supportedScalingModes": 2,
+    "supportedServiceDomains": 5,
+    "supportedKValues": 5,
+    "supportedAlphaValues": 11,
+    "totalSupportedScenarios": 550,
+    "workloadTractDomainRecords": 10835,
+    "arrivalPeriods": 13,
+    "fullArrivalPeriods": 12,
+    "requestAgeCheckpoints": 19
+  }
+}

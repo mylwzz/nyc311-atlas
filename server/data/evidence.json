@@ -1,0 +1,325 @@
+{
+  "schemaVersion": "4.0.0",
+  "modelVersion": "atlas-v4",
+  "artifactSetId": "20260715T045848Z-30e0e7f5",
+  "items": [
+    {
+      "id": "method.priority_score.rank_balanced",
+      "kind": "methodology",
+      "text": "Rank-balanced scoring combines complaint-intensity and lower-income-priority percentile ranks."
+    },
+    {
+      "id": "method.priority_score.magnitude_sensitive",
+      "kind": "methodology",
+      "text": "Magnitude-sensitive scoring combines complaint-intensity and lower-income-priority z-scores."
+    },
+    {
+      "id": "method.selection_rule",
+      "kind": "methodology",
+      "text": "Every supported scenario scores the constant 2,093-tract candidate universe and selects the top K."
+    },
+    {
+      "id": "method.administrative_closure",
+      "kind": "methodology",
+      "text": "Recorded administrative closure does not prove physical issue resolution."
+    },
+    {
+      "id": "method.workload_replay",
+      "kind": "methodology",
+      "text": "The workload replay uses actual 2016 30-day arrival cohorts and recorded closure survival by request age."
+    },
+    {
+      "id": "method.workload_uncertainty",
+      "kind": "methodology",
+      "text": "Workload intervals combine empirical resampling of complete 30-day arrival periods with a Jeffreys beta posterior for recorded-closure probability."
+    },
+    {
+      "id": "data.raw_311_rows",
+      "kind": "data_quality",
+      "text": "raw_311_rows = 2409019",
+      "data": {
+        "value": 2409019
+      }
+    },
+    {
+      "id": "data.raw_acs_rows",
+      "kind": "data_quality",
+      "text": "raw_acs_rows = 74002",
+      "data": {
+        "value": 74002
+      }
+    },
+    {
+      "id": "data.raw_tiger_tract_rows",
+      "kind": "data_quality",
+      "text": "raw_tiger_tract_rows = 4918",
+      "data": {
+        "value": 4918
+      }
+    },
+    {
+      "id": "data.acs_rows_after_identifier_row_removed",
+      "kind": "data_quality",
+      "text": "acs_rows_after_identifier_row_removed = 74001",
+      "data": {
+        "value": 74001
+      }
+    },
+    {
+      "id": "data.nyc_acs_tract_rows_before_tiger_merge",
+      "kind": "data_quality",
+      "text": "nyc_acs_tract_rows_before_tiger_merge = 2167",
+      "data": {
+        "value": 2167
+      }
+    },
+    {
+      "id": "data.requests_with_parseable_created_date",
+      "kind": "data_quality",
+      "text": "requests_with_parseable_created_date = 2409019",
+      "data": {
+        "value": 2409019
+      }
+    },
+    {
+      "id": "data.requests_2016",
+      "kind": "data_quality",
+      "text": "requests_2016 = 2409019",
+      "data": {
+        "value": 2409019
+      }
+    },
+    {
+      "id": "data.requests_2016_missing_coordinates",
+      "kind": "data_quality",
+      "text": "requests_2016_missing_coordinates = 215832",
+      "data": {
+        "value": 215832
+      }
+    },
+    {
+      "id": "data.requests_2016_with_valid_coordinates",
+      "kind": "data_quality",
+      "text": "requests_2016_with_valid_coordinates = 2193187",
+      "data": {
+        "value": 2193187
+      }
+    },
+    {
+      "id": "data.requests_classified_into_five_domains",
+      "kind": "data_quality",
+      "text": "requests_classified_into_five_domains = 2193187",
+      "data": {
+        "value": 2193187
+      }
+    },
+    {
+      "id": "data.requests_classified_as_other",
+      "kind": "data_quality",
+      "text": "requests_classified_as_other = 0",
+      "data": {
+        "value": 0
+      }
+    },
+    {
+      "id": "data.complaint_types_observed",
+      "kind": "data_quality",
+      "text": "complaint_types_observed = 182",
+      "data": {
+        "value": 182
+      }
+    },
+    {
+      "id": "data.complaint_types_mapped_to_five_domains",
+      "kind": "data_quality",
+      "text": "complaint_types_mapped_to_five_domains = 182",
+      "data": {
+        "value": 182
+      }
+    },
+    {
+      "id": "data.requests_spatially_matched_to_tract",
+      "kind": "data_quality",
+      "text": "requests_spatially_matched_to_tract = 2192990",
+      "data": {
+        "value": 2192990
+      }
+    },
+    {
+      "id": "data.requests_not_matched_to_tract",
+      "kind": "data_quality",
+      "text": "requests_not_matched_to_tract = 197",
+      "data": {
+        "value": 197
+      }
+    },
+    {
+      "id": "data.requests_retained_after_spatial_match",
+      "kind": "data_quality",
+      "text": "requests_retained_after_spatial_match = 2192990",
+      "data": {
+        "value": 2192990
+      }
+    },
+    {
+      "id": "data.all_map_tracts",
+      "kind": "data_quality",
+      "text": "all_map_tracts = 2167",
+      "data": {
+        "value": 2167
+      }
+    },
+    {
+      "id": "data.tracts_before_population_filter",
+      "kind": "data_quality",
+      "text": "tracts_before_population_filter = 2167",
+      "data": {
+        "value": 2167
+      }
+    },
+    {
+      "id": "data.tracts_after_population_filter",
+      "kind": "data_quality",
+      "text": "tracts_after_population_filter = 2099",
+      "data": {
+        "value": 2099
+      }
+    },
+    {
+      "id": "data.tracts_removed_by_population_filter",
+      "kind": "data_quality",
+      "text": "tracts_removed_by_population_filter = 68",
+      "data": {
+        "value": 68
+      }
+    },
+    {
+      "id": "data.population_threshold",
+      "kind": "data_quality",
+      "text": "population_threshold = 500",
+      "data": {
+        "value": 500
+      }
+    },
+    {
+      "id": "context.noise.q1_q5_mean_intensity_ratio",
+      "kind": "context",
+      "text": "In Noise, the Q1-to-Q5 mean tract-intensity ratio is 1.323.",
+      "data": {
+        "value": 1.323384685906156
+      }
+    },
+    {
+      "id": "context.housing_building.q1_q5_mean_intensity_ratio",
+      "kind": "context",
+      "text": "In Housing & Building, the Q1-to-Q5 mean tract-intensity ratio is 3.029.",
+      "data": {
+        "value": 3.028526361662104
+      }
+    },
+    {
+      "id": "context.sanitation_environmental.q1_q5_mean_intensity_ratio",
+      "kind": "context",
+      "text": "In Sanitation & Environmental, the Q1-to-Q5 mean tract-intensity ratio is 0.562.",
+      "data": {
+        "value": 0.5619144039026251
+      }
+    },
+    {
+      "id": "context.street_infrastructure.q1_q5_mean_intensity_ratio",
+      "kind": "context",
+      "text": "In Street & Infrastructure, the Q1-to-Q5 mean tract-intensity ratio is 0.548.",
+      "data": {
+        "value": 0.547827312408136
+      }
+    },
+    {
+      "id": "context.public_safety_quality_of_life.q1_q5_mean_intensity_ratio",
+      "kind": "context",
+      "text": "In Public Safety & Quality of Life, the Q1-to-Q5 mean tract-intensity ratio is 0.459.",
+      "data": {
+        "value": 0.4593680895560458
+      }
+    },
+    {
+      "id": "limitation.historical_snapshot",
+      "kind": "limitation",
+      "text": "The analysis reflects 2016 conditions and is not a current NYC operational recommendation."
+    },
+    {
+      "id": "limitation.reporting_behavior",
+      "kind": "limitation",
+      "text": "311 records reflect both underlying conditions and reporting behavior. Complaint activity is not a direct measurement of true need."
+    },
+    {
+      "id": "limitation.administrative_closure_semantics",
+      "kind": "limitation",
+      "text": "Closed Date records administrative closure and does not necessarily mean the physical condition was fully resolved."
+    },
+    {
+      "id": "limitation.sparse_tract_domain_response",
+      "kind": "limitation",
+      "text": "Every tract-domain pair is retained, including zero-request and low-sample combinations. Tract-specific closure curves and workload replay are suppressed below 30 known timing outcomes. The product does not silently treat missing or sparse closure evidence as a zero closure rate."
+    },
+    {
+      "id": "limitation.invalid_closure_dates",
+      "kind": "limitation",
+      "text": "Approximately 0.5% of matched requests have a Closed Date earlier than Created Date. They are excluded from closure-time measures; anomalies are concentrated in Street & Infrastructure."
+    },
+    {
+      "id": "limitation.workload_history",
+      "kind": "limitation",
+      "text": "The workload model uses actual 30-day arrival periods from one year. It describes the 2016 period pattern, not stable seasonality or a future arrival forecast."
+    },
+    {
+      "id": "limitation.request_age",
+      "kind": "limitation",
+      "text": "Open at 180 days means the surviving portion of one 30-day arrival cohort when requests reach 180 days old. It is not 180 days of accumulated new arrivals."
+    },
+    {
+      "id": "limitation.uncertainty_scope",
+      "kind": "limitation",
+      "text": "Intervals reflect within-2016 period variation and uncertainty in recorded-closure rates. They do not capture future structural changes."
+    },
+    {
+      "id": "limitation.partial_period",
+      "kind": "limitation",
+      "text": "The final 2016 arrival period contains six days. It is shown in the historical pattern but is excluded from full-period resampling."
+    },
+    {
+      "id": "limitation.nycha_coverage",
+      "kind": "limitation",
+      "text": "Standard 311 housing data do not fully represent public-housing in-unit repair workflows."
+    },
+    {
+      "id": "limitation.observational",
+      "kind": "limitation",
+      "text": "The analysis identifies descriptive patterns, selection tradeoffs, and assumption-based projections. It does not estimate causal effects."
+    },
+    {
+      "id": "limitation.portfolio_size_abstraction",
+      "kind": "limitation",
+      "text": "K is the number of tracts in an analytical selection scenario. It is not staffing, budget, inspections, cases, or intervention capacity."
+    },
+    {
+      "id": "limitation.population_threshold",
+      "kind": "limitation",
+      "text": "Tracts with fewer than 500 residents remain visible but are excluded from prioritization because small denominators can create unstable per-capita rates."
+    },
+    {
+      "id": "limitation.missing_income",
+      "kind": "limitation",
+      "text": "Six population-eligible tracts lack the median household income required by the two-component score and remain visible but ineligible."
+    },
+    {
+      "id": "limitation.scaling_choice",
+      "kind": "limitation",
+      "text": "Rank-balanced percentile scaling and Magnitude-sensitive z-score scaling can produce materially different selected sets."
+    },
+    {
+      "id": "limitation.geographic_aggregation",
+      "kind": "limitation",
+      "text": "Census-tract summaries can obscure variation within a tract."
+    }
+  ]
+}
