@@ -1,6 +1,6 @@
 {
   "schemaVersion": "4.0.0",
-  "modelVersion": "atlas-v4",
+  "modelVersion": "atlas",
   "artifactSetId": "20260715T045848Z-30e0e7f5",
   "project": "NYC 311 Priority Atlas",
   "productDefinition": "An explorer-first urban-service intelligence workspace with embedded comparison, deterministic selection scenarios, historical workload replay, a scenario sandbox, and an optional Claude assistant.",

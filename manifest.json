@@ -1,6 +1,6 @@
 {
   "schemaVersion": "4.0.0",
-  "modelVersion": "atlas-v4",
+  "modelVersion": "atlas",
   "artifactSetId": "20260715T045848Z-30e0e7f5",
   "project": "NYC 311 Priority Atlas",
   "generatedAtUtc": "2026-07-15T04:59:01.797739+00:00",
@@ -8,64 +8,64 @@
     {
       "file": "tracts.geojson",
       "relativePath": "public/data/tracts.geojson",
-      "byteSize": 16987897,
-      "sha256": "021f176bc41804f169ebe3925e097e9200f03e89e1b0d6b8d6ce9f4324550a00",
+      "byteSize": 16987894,
+      "sha256": "79bf2bceffd46e226b2a96347df293a0a3a1df683c5682dd1136b9e60721d967",
       "recordCount": 2167
     },
     {
       "file": "tract_details.json",
       "relativePath": "public/data/tract_details.json",
-      "byteSize": 19663077,
-      "sha256": "4e11497df4289680e194059ad9f7b64b2b2b15cf6e4114fd01d6d102e92297cc",
+      "byteSize": 19663074,
+      "sha256": "82578c7f94408e6fa06a49b5fe2bd37fe689bb7364df32a3e7bfb4f24965ef9d",
       "recordCount": 2167
     },
     {
       "file": "scenarios.json",
       "relativePath": "public/data/scenarios.json",
-      "byteSize": 3417215,
-      "sha256": "464b95baf75845c6f71bd1f79ab56405e8a2ccec244bffd2ea02cde41d394aba",
+      "byteSize": 3417212,
+      "sha256": "6a50ba7f070cccb9808e4baef6c290412c88cad7cf3b28039081428e8e4d2808",
       "recordCount": 550
     },
     {
       "file": "tradeoff.json",
       "relativePath": "public/data/tradeoff.json",
-      "byteSize": 418681,
-      "sha256": "be6db3552ace0e3be58b99fbba16a56f7922c6731f2bcbf5f5a1cf5f532f46a6",
+      "byteSize": 418678,
+      "sha256": "aa56a48ebb5dc5bc191f071ab3f864ff7a84e228462e40580c96d6509c55d6ea",
       "recordCount": 550
     },
     {
       "file": "context.json",
       "relativePath": "public/data/context.json",
-      "byteSize": 12542,
-      "sha256": "79ae08dd6da1d3f06bf38f721e9e0c349e3ae246be76abadbb012ec3771e1b88",
+      "byteSize": 12539,
+      "sha256": "dc126b6765783f70e72a86ebe12fcbc4ecfd7a21064f5b6ea9e6ec21b5ff655c",
       "recordCount": 5
     },
     {
       "file": "workload.json",
       "relativePath": "public/data/workload.json",
-      "byteSize": 22025244,
-      "sha256": "8450a5afb306729d7ce0364f6397f74d28b13efcc6a3fcf21cb23b66f910b442",
+      "byteSize": 22025241,
+      "sha256": "fea46c94982bad3967f1f2fa16e07abeb36c032a94efc09a86b99a30b4e2df27",
       "recordCount": 10835
     },
     {
       "file": "metadata.json",
       "relativePath": "public/data/metadata.json",
-      "byteSize": 3355,
-      "sha256": "72b3da9d51faf86db85d388ba1835949fb1ad8dcc8757716d5a87028e0b6c86d",
+      "byteSize": 3352,
+      "sha256": "a1e65401d0a4217f4a809e3c0f04bfbbfcd9e10ae63fe5921073e24c06fd4d47",
       "recordCount": 1
     },
     {
       "file": "knowledge_base.json",
       "relativePath": "server/data/knowledge_base.json",
-      "byteSize": 8632,
-      "sha256": "fe14f1a580a9255273b2ebbc6866b4baede839d5e55410b39657ecdf5c1035b4",
+      "byteSize": 8629,
+      "sha256": "4dbe7d848cc34ea1ec262334068e30d60a81fc4881a2d2727dfe1fcf48ae9df9",
       "recordCount": 1
     },
     {
       "file": "evidence.json",
       "relativePath": "server/data/evidence.json",
-      "byteSize": 10584,
-      "sha256": "9574de142b1936c34578c8a7b2f7d3664397992db0648080dd20eb2d89d29130",
+      "byteSize": 10581,
+      "sha256": "e31c59dd536f7e9d251ccc464ebc55d3d6cc549c79e96bb2b4f504a2abeafc29",
       "recordCount": 48
     }
   ]

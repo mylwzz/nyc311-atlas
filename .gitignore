@@ -1,0 +1,23 @@
+# --- Dependency Directories ---
+node_modules/
+*.tsbuildinfo
+.pnpm-store/
+
+# --- Local Environment & Secrets ---
+.env
+.env.local
+.env.*.local
+
+# --- Build Outputs ---
+.next/
+dist/
+build/
+out/
+playwright-report/
+test-results/
+blob-report/
+
+# --- IDEs & OS Junk ---
+.DS_Store
+Thumbs.db
+.vscode/

@@ -1,0 +1,191 @@
+.root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 32rem;
+  overflow: hidden;
+  background: #d8d5ce;
+  isolation: isolate;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+}
+
+.canvas :global(.maplibregl-canvas-container),
+.canvas :global(.maplibregl-canvas) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.canvas :global(.maplibregl-canvas) {
+  outline: none;
+}
+
+.canvas :global(.maplibregl-canvas):focus-visible {
+  box-shadow: inset 0 0 0 3px #4f706b;
+}
+
+.search {
+  position: absolute;
+  z-index: 4;
+  top: 1rem;
+  left: 1rem;
+}
+
+.legend {
+  position: absolute;
+  z-index: 3;
+  bottom: 1rem;
+  left: 1rem;
+}
+
+.navigation {
+  position: absolute;
+  z-index: 3;
+  right: 1rem;
+  bottom: 1rem;
+  display: grid;
+  overflow: hidden;
+  border: 1px solid rgb(67 64 59 / 20%);
+  border-radius: 0.3rem;
+  background: rgb(249 247 242 / 96%);
+  box-shadow: 0 1px 5px rgb(35 32 27 / 10%);
+}
+
+.navigation button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid rgb(67 64 59 / 16%);
+  background: transparent;
+  color: #373530;
+  cursor: pointer;
+  font: 600 1rem/1 var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+}
+
+.navigation button:last-child {
+  border-bottom: 0;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+}
+
+.navigation button:hover {
+  background: #e9e5dc;
+}
+
+.navigation button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 3px solid rgb(79 112 107 / 55%);
+  outline-offset: -3px;
+}
+
+.tooltip {
+  position: absolute;
+  z-index: 6;
+  display: grid;
+  width: 15rem;
+  max-width: calc(100% - 1.5rem);
+  gap: 0.2rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid rgb(61 58 53 / 20%);
+  border-radius: 0.25rem;
+  background: rgb(250 248 243 / 97%);
+  box-shadow: 0 5px 18px rgb(35 32 27 / 14%);
+  color: #2d2b27;
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+  font-size: 0.75rem;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+.tooltip:focus-visible {
+  outline: 3px solid rgb(79 112 107 / 58%);
+  outline-offset: 2px;
+}
+
+.tooltip strong {
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.tooltipMeta,
+.sampleNote {
+  color: #77736c;
+}
+
+.tooltipMeta {
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.tooltip dl {
+  display: grid;
+  gap: 0.22rem;
+  padding-top: 0.35rem;
+  margin: 0.2rem 0 0;
+  border-top: 1px solid rgb(61 58 53 / 14%);
+}
+
+.tooltip dl div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+}
+
+.tooltip dt {
+  color: #625f59;
+}
+
+.tooltip dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.sampleNote {
+  padding-top: 0.3rem;
+  font-size: 0.68rem;
+}
+
+.live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 940px) {
+  .navigation {
+    bottom: calc(
+      min(62dvh, 620px) + var(--mobile-workspace-band, 68px) + 0.75rem
+    );
+  }
+
+  .legend {
+    display: none;
+  }
+}
+
+@media (max-width: 360px) {
+  .navigation {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navigation button {
+    scroll-behavior: auto;
+  }
+}

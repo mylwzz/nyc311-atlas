@@ -2,7 +2,7 @@
 
 **Specification version:** 4.0  
 **Expected artifact schema:** `4.0.0`  
-**Expected model version:** `atlas-v4`  
+**Expected model version:** `atlas`  
 **Artifact-set identifier:** Read from `manifest.json`; never hard-code it in application logic.  
 **Status:** Implementation contract
 
@@ -1048,7 +1048,7 @@ Use visual regression for default, single tract, five tracts, radius 1, radius 5
 
 1. All artifacts share one artifact-set ID.
 2. Schema is `4.0.0`.
-3. Model is `atlas-v4`.
+3. Model is `atlas`.
 4. Mismatch blocks rendering.
 5. Explore renders before optional artifacts.
 
