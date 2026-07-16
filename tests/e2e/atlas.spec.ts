@@ -29,11 +29,11 @@ test.describe("launch-critical Atlas workflows", () => {
     await expect(page.locator("#metric-control")).toHaveValue(
       "complaint_intensity",
     );
-    await expect(page.getByRole("heading", { name: "Housing & Building" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Explore the historical record" })).toBeVisible();
     await expect(page.getByLabel("Map legend")).toContainText(
       "Complaints per 1,000",
     );
-    await expect(page.getByText("Begin with the map")).toBeVisible();
+    await expect(page.getByText("Choose a tract to begin")).toBeVisible();
 
     expect(
       artifactRequests.some((url) => url.endsWith("/data/tract_details.json")),
@@ -50,17 +50,33 @@ test.describe("launch-critical Atlas workflows", () => {
     page,
   }) => {
     await openAtlas(page);
-    const actual = REPRESENTATIVE_TRACTS.high;
+    // Use a broad, sufficient tract so both clicks exercise a stable polygon
+    // interior before and after the responsive Explore rail resize.
+    const actual = REPRESENTATIVE_TRACTS.sufficient;
     const point = await hoverActualTract(page, actual);
     const tooltip = page.getByLabel(`Map details for ${nameOf(actual)}`);
-    await expect(tooltip).toContainText("Housing & Building mapped complaints");
+    await expect(tooltip).toContainText(`GEOID ${actual.properties.geoid}`);
+    await expect(tooltip).toContainText("Population");
+    await expect(tooltip).toContainText("Median income");
+    await expect(tooltip).toContainText("Mapped complaints · Housing & Building");
     await expect(tooltip).toContainText("Complaints per 1,000");
+    await expect(tooltip.locator("dl")).not.toContainText("Median household income");
+
+    await hoverActualTract(page, REPRESENTATIVE_TRACTS.missingDemographics);
+    const unavailableTooltip = page.getByLabel(
+      `Map details for ${nameOf(REPRESENTATIVE_TRACTS.missingDemographics)}`,
+    );
+    await expect(unavailableTooltip).toContainText("Population N/A");
+    await expect(unavailableTooltip).toContainText("Median income N/A");
 
     await page.mouse.click(point.x, point.y);
     await expect(page.getByLabel("Selected census tracts")).toContainText(
       `Tract ${actual.properties.tractName}`,
     );
-    await page.mouse.click(point.x, point.y);
+    // Selecting a tract expands the Explore rail, so re-project against the
+    // resized map before exercising click-again removal.
+    const selectedPoint = await hoverActualTract(page, actual);
+    await page.mouse.click(selectedPoint.x, selectedPoint.y);
     await expect(page.getByLabel("Selected census tracts")).toHaveCount(0);
 
     const metric = page.locator("#metric-control");
@@ -69,11 +85,11 @@ test.describe("launch-critical Atlas workflows", () => {
     await expect(legend).toContainText("Mapped complaints");
 
     await metric.selectOption("recorded_closure_30d");
-    await expect(legend).toContainText("Recorded closed within 30 days");
+    await expect(legend).toContainText("Closed within 30 days");
     await expect(legend).toContainText("Not available / insufficient sample");
 
     await metric.selectOption("expected_cohort_open_age_30d");
-    await expect(legend).toContainText("Expected cohort open at age 30");
+    await expect(legend).toContainText("Modeled still open after 30 days");
     await expect(legend).toContainText("Not available / insufficient sample");
 
     await selectTract(page, actual);
@@ -83,9 +99,8 @@ test.describe("launch-critical Atlas workflows", () => {
     await mapCanvas.focus();
     const keyboardTooltip = page.getByLabel(`Map details for ${nameOf(actual)}`);
     await expect(keyboardTooltip).toBeVisible();
-    await expect(keyboardTooltip).toHaveAttribute("tabindex", "0");
-    await keyboardTooltip.focus();
-    await expect(keyboardTooltip).toBeFocused();
+    await expect(keyboardTooltip.getByRole("button")).toHaveCount(0);
+    await expect(keyboardTooltip).not.toContainText("About");
   });
 
   test("actual high, low, ineligible, island, zero, sparse, and sufficient tracts render honestly", async ({
@@ -95,20 +110,26 @@ test.describe("launch-critical Atlas workflows", () => {
     await openAtlas(page);
 
     await selectTract(page, tracts.high);
-    await expect(page.getByRole("heading", { name: nameOf(tracts.high) })).toBeVisible();
-    await expect(page.getByText("recorded closure within 30 days")).toBeVisible();
+    await expect(page.getByRole("heading", { name: `Census Tract ${tracts.high.properties.tractName}` })).toBeVisible();
+    await expect(
+      page.getByText("closed within 30 days", { exact: true }),
+    ).toBeVisible();
     await clearSelection(page);
 
     await selectTract(page, tracts.low);
-    await expect(page.getByRole("heading", { name: nameOf(tracts.low) })).toBeVisible();
+    await expect(page.getByRole("heading", { name: `Census Tract ${tracts.low.properties.tractName}` })).toBeVisible();
     await expect(page.getByText("1.1 per 1,000 residents")).toBeVisible();
     await clearSelection(page);
 
     await selectTract(page, tracts.ineligible);
     await expect(
-      page.getByRole("heading", { name: nameOf(tracts.ineligible) }),
+      page.getByRole("heading", { name: `Census Tract ${tracts.ineligible.properties.tractName}` }),
     ).toBeVisible();
-    await expect(page.getByText(/allocation eligibility is unavailable|not allocation eligible/i).first()).toBeVisible();
+    await page.getByRole("button", { name: "Data notes for this view" }).click();
+    await expect(page.getByText("Not eligible for prioritization", { exact: true })).toBeVisible();
+    await expect(page.getByText("Per 1,000 residents", { exact: true })).toBeVisible();
+    await expect(page.getByText("Response sample", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Close data notes" }).click();
     await clearSelection(page);
 
     await selectTract(page, tracts.zeroRequest);
@@ -117,21 +138,24 @@ test.describe("launch-critical Atlas workflows", () => {
 
     await selectTract(page, tracts.sparse);
     await expect(
-      page.getByText("Insufficient tract-specific sample", { exact: true }).first(),
+      page.getByText("Small response sample", { exact: true }).first(),
     ).toBeVisible();
     await clearSelection(page);
 
     await selectTract(page, tracts.sufficient);
-    await expect(page.getByText("recorded closure within 30 days")).toBeVisible();
+    await expect(
+      page.getByText("closed within 30 days", { exact: true }),
+    ).toBeVisible();
     await clearSelection(page);
 
     await selectTract(page, tracts.island);
+    await page.getByRole("button", { name: "Compare with nearby tracts" }).click();
     const neighborhood = page.locator("section").filter({
-      has: page.getByRole("heading", { name: "Queen neighborhood" }),
+      has: page.getByRole("heading", { name: "Nearby tract comparison" }),
     });
-    await neighborhood.getByRole("button", { name: "Off" }).click();
+    await expect(neighborhood).toBeVisible();
     await expect(
-      page.getByText("No contiguous tract neighbors are available.").first(),
+      page.getByText(/No nearby tracts share a boundary or corner/).first(),
     ).toBeVisible();
   });
 
@@ -141,7 +165,14 @@ test.describe("launch-critical Atlas workflows", () => {
     await openAtlas(page);
     const six = REPRESENTATIVE_TRACTS.fiveSufficient;
     for (const tract of six.slice(0, 5)) await selectTract(page, tract);
-    await page.locator("#tract-search").selectOption(six[5].properties.geoid);
+    const search = page.getByRole("combobox", {
+      name: "Search by tract number, GEOID, or borough",
+    });
+    await search.fill(six[5].properties.geoid);
+    await page
+      .getByRole("option")
+      .filter({ hasText: six[5].properties.geoid })
+      .click();
 
     const selected = page.getByLabel("Selected census tracts");
     await expect(selected.locator(".tract-chip")).toHaveCount(5);
@@ -161,10 +192,10 @@ test.describe("launch-critical Atlas workflows", () => {
     await clearSelection(page);
 
     await selectTract(page, REPRESENTATIVE_TRACTS.high);
+    await page.getByRole("button", { name: "Compare with nearby tracts" }).click();
     const neighborhood = page.locator("section").filter({
-      has: page.getByRole("heading", { name: "Queen neighborhood" }),
+      has: page.getByRole("heading", { name: "Nearby tract comparison" }),
     });
-    await neighborhood.getByRole("button", { name: "Off" }).click();
     const included = neighborhood.locator(".metric-cell").filter({
       hasText: "Included tracts",
     }).locator(".value");
@@ -180,48 +211,52 @@ test.describe("launch-critical Atlas workflows", () => {
     await clearSelection(page);
   });
 
-  test("Scenario Lab exposes the exact overlay and pinned comparison", async ({
+  test("Prioritize exposes the exact overlay and saved comparison", async ({
     page,
   }) => {
     await openAtlas(page);
-    await page.getByRole("tab", { name: "Scenario Lab" }).click();
+    await page.getByRole("tab", { name: "Prioritize" }).click();
 
-    await expect(page.getByRole("heading", { name: "Scenario Lab" })).toBeVisible();
-    await expect(page.getByText(/Explore all 550 deterministic selection scenarios/)).toBeVisible({
+    await expect(page.getByRole("heading", { name: "Prioritize tracts" })).toBeVisible();
+    await expect(
+      page.getByText(
+        "Rank eligible tracts by complaint intensity and lower-income priority, then choose how many of the highest-ranked tracts to show.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Set the definition" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/Rank eligible tracts by the combined score/),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/one of 550 validated historical definitions/),
+    ).toBeVisible();
+    await expect(page.getByText("100 tracts surfaced", { exact: true })).toBeVisible({
       timeout: 20_000,
     });
-    await expect(
-      page.getByText("rank_balanced-housing_building-k100-a050", {
-        exact: true,
-      }),
-    ).toBeVisible();
     await expect(page.locator("#scenario-k")).toHaveValue("100");
     await expect(page.getByLabel("Map legend")).toContainText(
-      "Current selection scenario",
+      "Current priority definition",
     );
 
     await page.getByRole("button", { name: "Magnitude-sensitive" }).click();
     await page.locator("#scenario-domain").selectOption("noise");
     await page.locator("#scenario-k").selectOption("25");
     await setRange(page.locator("#scenario-alpha"), 0.7);
-    await expect(
-      page.getByText("magnitude_sensitive-noise-k25-a070", { exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByText(
-        "1 exact match · magnitude_sensitive-noise-k25-a070",
-        { exact: true },
-      ),
-    ).toBeVisible();
+    await expect(page.getByText("25 tracts surfaced", { exact: true })).toBeVisible();
 
-    await page.getByRole("button", { name: "Pin current" }).click();
+    await page.getByRole("button", { name: "Save current definition" }).click();
     await setRange(page.locator("#scenario-alpha"), 0);
-    await expect(page.locator('output[for="scenario-alpha"]')).toHaveText("0.0");
-    await expect(page.getByText("Entered", { exact: true })).toBeVisible();
-    await expect(page.getByText("Exited", { exact: true })).toBeVisible();
+    await expect(page.locator('output[for="scenario-alpha"]')).toContainText(
+      "0% weight to complaint intensity",
+    );
+    await expect(page.getByText("Newly surfaced", { exact: true })).toBeVisible();
+    await expect(page.getByText("No longer surfaced", { exact: true })).toBeVisible();
     await expect(page.getByText("Shared", { exact: true })).toBeVisible();
     await expect(page.getByLabel("Map legend")).toContainText(
-      "Shared by both scenarios",
+      "Shared by both definitions",
     );
   });
 
@@ -230,43 +265,61 @@ test.describe("launch-critical Atlas workflows", () => {
   }) => {
     await openAtlas(page);
     await selectTract(page, REPRESENTATIVE_TRACTS.sparse);
-    await page.getByRole("tab", { name: "Workload" }).click();
-    await expect(page.getByText(/fewer than 30 known timing outcomes/)).toBeVisible({
+    await page.getByRole("tab", { name: "Model" }).click();
+    await expect(page.getByText(/Sample: \d+ requests · 30 needed for response modeling/)).toBeVisible({
       timeout: 20_000,
     });
+    await expect(
+      page.getByText("Not enough response data for this chart.", {
+        exact: true,
+      }),
+    ).toHaveCount(2);
 
     await page.getByRole("tab", { name: "Explore" }).click();
     await clearSelection(page);
     for (const tract of REPRESENTATIVE_TRACTS.pooledSparse) {
       await selectTract(page, tract);
     }
-    await page.getByRole("tab", { name: "Workload" }).click();
+    await page.getByRole("tab", { name: "Model" }).click();
     await page.locator("#workload-scope").selectOption("selected_tracts");
-    await expect(page.getByText(
-      `Pooled across ${REPRESENTATIVE_TRACTS.pooledSparse.length} tracts`,
-    )).toBeVisible();
+    await expect(
+      page
+        .locator("p[aria-live='polite']")
+        .filter({ hasText: "Housing & Building" }),
+    ).toContainText(
+      `pooled across ${REPRESENTATIVE_TRACTS.pooledSparse.length} selected tracts`,
+    );
     await expect(page.getByText("13 periods")).toBeVisible();
     await expect(page.getByText("6 days · partial")).toBeVisible();
-    await expect(page.getByText("Expected open balance", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("80% uncertainty interval · 1,000 draws")).toBeVisible({
+    await expect(page.getByText("Requests in this scope", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("figure", {
+        name: /Modeled requests still open over time/,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "Typical range (middle 80%) · based on 1,000 resamples of complete historical months and closure uncertainty.",
+      ),
+    ).toBeVisible({ timeout: 20_000 });
+    await page.getByRole("button", { name: "180 days" }).click();
+    await expect(page.getByText("median modeled still open after ~6 months")).toBeVisible({
       timeout: 20_000,
     });
-    await page.getByRole("button", { name: "Age 180" }).click();
-    await expect(page.getByText("expected open at age 180")).toBeVisible({
-      timeout: 20_000,
-    });
-    const intervalDetails = page.getByText(
-      "95% interval and recorded-closure uncertainty",
-      { exact: true },
-    );
+    await expect(
+      page.getByText(/does not represent 180 days of accumulated arrivals/),
+    ).toBeVisible();
+    const intervalDetails = page.getByText("Technical details", { exact: true });
     await intervalDetails.click();
-    await expect(page.getByText("95% open interval", { exact: true })).toBeVisible();
+    await expect(page.getByText("95% modeled still-open range", { exact: true })).toBeVisible();
 
-    await page.getByRole("button", { name: "Scenario", exact: true }).click();
+    await page.getByRole("button", { name: "What-if", exact: true }).click();
     await setRange(page.locator("#demand-change"), 20);
     await setRange(page.locator("#closure-shift"), 5);
     await expect(page.locator('output[for="demand-change"]')).toHaveText("+20.0%");
-    await expect(page.locator('output[for="closure-shift"]')).toHaveText("+5.0 pp");
+    await expect(page.locator('output[for="closure-shift"]')).toHaveText(
+      "+5.0 percentage points",
+    );
     await expect(
       page.getByRole("heading", { name: "Assumption-based workload scenario" }),
     ).toBeVisible();
@@ -296,13 +349,13 @@ test.describe("launch-critical Atlas workflows", () => {
 
     await openAtlas(page);
     await selectTract(page, REPRESENTATIVE_TRACTS.sufficient);
+    await page.getByRole("button", { name: "Compare with nearby tracts" }).click();
     const neighborhood = page.locator("section").filter({
-      has: page.getByRole("heading", { name: "Queen neighborhood" }),
+      has: page.getByRole("heading", { name: "Nearby tract comparison" }),
     });
-    await neighborhood.getByRole("button", { name: "Off" }).click();
     await expect(neighborhood.locator("#neighborhood-radius")).toHaveValue("1");
 
-    await page.getByRole("button", { name: "Claude interpretation" }).click();
+    await page.getByRole("button", { name: "Interpretation with Claude" }).click();
     await page.locator("#assistant-task").selectOption(
       "explain_neighborhood_context",
     );

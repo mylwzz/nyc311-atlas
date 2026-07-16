@@ -1,18 +1,55 @@
 import type {
   DomainKey,
+  TractDetails,
   TractFeature,
   TractFeatureProperties,
   TractWorkloadRecord,
   WorkloadInterval,
   WorkloadSampleStatus,
 } from "@/lib/artifacts";
-import { DOMAIN_CONFIG, DOMAIN_KEYS } from "@/lib/domain";
+import { agencyFullName } from "@/lib/agencies";
+import {
+  DOMAIN_CONFIG,
+  DOMAIN_KEYS,
+  EXPLORE_DOMAIN_CONFIG,
+  type ExploreDomainKey,
+} from "@/lib/domain";
+import { getCollectiveComplaintSummary } from "@/lib/map/metrics";
+
+type TractDetailRecord = TractDetails["tracts"][string];
 
 export interface ComplaintDomainPresentation {
   domain: DomainKey;
   label: string;
   count: number;
   ratePer1000: number | null;
+}
+
+export interface ComplaintSummaryPresentation {
+  domain: ExploreDomainKey;
+  label: string;
+  count: number;
+  ratePer1000: number | null;
+}
+
+export interface ComplaintTypePresentation {
+  complaintType: string;
+  domain: DomainKey;
+  domainLabel: string;
+  count: number;
+  sharePct: number;
+}
+
+export interface AgencyPresentation {
+  agency: string;
+  fullName: string | null;
+  count: number;
+  sharePct: number;
+}
+
+export interface ComplaintCompositionPresentation {
+  complaintTypes: readonly ComplaintTypePresentation[];
+  agencies: readonly AgencyPresentation[];
 }
 
 export interface SufficientResponseMetrics {
@@ -50,7 +87,7 @@ export type RecordedResponsePresentation =
     }
   | {
       status: "insufficient_sample";
-      title: "Insufficient tract-specific sample";
+      title: "Small response sample";
       detail: string;
       requestCount: number;
       knownTimingOutcomes30d: number;
@@ -60,7 +97,7 @@ export type RecordedResponsePresentation =
     }
   | {
       status: "sufficient";
-      title: "Recorded administrative response";
+      title: "Recorded response";
       detail: string;
       requestCount: number;
       knownTimingOutcomes30d: number;
@@ -72,10 +109,13 @@ export type RecordedResponsePresentation =
 export interface TractPresentation {
   feature: TractFeature;
   complaintDomains: readonly ComplaintDomainPresentation[];
-  activeDomain: ComplaintDomainPresentation;
-  response: RecordedResponsePresentation;
+  activeDomain: ComplaintSummaryPresentation;
+  response: RecordedResponsePresentation | null;
   warnings: readonly string[];
 }
+
+export const COLLECTIVE_RESPONSE_NOTE =
+  "Collective combines complaint activity only. Choose one service domain to view closure timing.";
 
 export type TractUncertaintyPresentation =
   | {
@@ -89,7 +129,7 @@ export type TractUncertaintyPresentation =
       title:
         | "No mapped requests"
         | "Closure timing unavailable"
-        | "Insufficient tract-specific sample";
+        | "Small response sample";
       age30: null;
       age180: null;
     };
@@ -99,14 +139,14 @@ export function sparseResponseTitle(
 ):
   | "No mapped requests"
   | "Closure timing unavailable"
-  | "Insufficient tract-specific sample" {
+  | "Small response sample" {
   switch (status) {
     case "no_requests":
       return "No mapped requests";
     case "no_known_timing":
       return "Closure timing unavailable";
     case "insufficient_sample":
-      return "Insufficient tract-specific sample";
+      return "Small response sample";
   }
 }
 
@@ -190,6 +230,73 @@ export function getComplaintDomainPresentation(
   };
 }
 
+export function getCollectiveComplaintPresentation(
+  properties: TractFeatureProperties,
+): ComplaintSummaryPresentation {
+  const summary = getCollectiveComplaintSummary(properties);
+  return {
+    domain: "collective",
+    label: EXPLORE_DOMAIN_CONFIG.collective.label,
+    count: summary.count,
+    ratePer1000: summary.ratePer1000,
+  };
+}
+
+function descendingCountThenLabel<
+  Item extends { count: number; complaintType?: string; agency?: string },
+>(left: Item, right: Item): number {
+  return (
+    right.count - left.count ||
+    (left.complaintType ?? left.agency ?? "").localeCompare(
+      right.complaintType ?? right.agency ?? "",
+    )
+  );
+}
+
+/**
+ * Builds the complaint-type/agency disclosure from exported detail rows.
+ * Collective complaint-type shares use the summed five-domain complaint count
+ * as the denominator; artifact percentages are never averaged. Agency detail
+ * remains domain-specific because the artifact exports only each domain's top
+ * five agencies, which cannot produce an exact cross-domain ranking.
+ */
+export function getComplaintCompositionPresentation(
+  detail: TractDetailRecord,
+  properties: TractFeatureProperties,
+  domain: ExploreDomainKey,
+): ComplaintCompositionPresentation {
+  if (domain !== "collective") {
+    return {
+      complaintTypes: detail.topComplaintTypesByDomain[domain].map((item) => ({
+        ...item,
+        domain,
+        domainLabel: DOMAIN_CONFIG[domain].label,
+      })),
+      agencies: detail.topAgenciesByDomain[domain].map((item) => ({
+        ...item,
+        fullName: agencyFullName(item.agency),
+      })),
+    };
+  }
+
+  const collectiveCount = getCollectiveComplaintSummary(properties).count;
+  const shareOfCollective = (count: number) =>
+    collectiveCount > 0 ? (count / collectiveCount) * 100 : 0;
+  const complaintTypes = DOMAIN_KEYS.flatMap((key) =>
+    detail.topComplaintTypesByDomain[key].map((item) => ({
+      complaintType: item.complaintType,
+      domain: key,
+      domainLabel: DOMAIN_CONFIG[key].label,
+      count: item.count,
+      sharePct: shareOfCollective(item.count),
+    })),
+  )
+    .sort(descendingCountThenLabel)
+    .slice(0, 10);
+
+  return { complaintTypes, agencies: [] };
+}
+
 /**
  * Produces a discriminated response model. Sparse states have `metrics: null`
  * by construction, so a missing closure value cannot be formatted as zero.
@@ -219,8 +326,7 @@ export function getRecordedResponsePresentation(
       return {
         status,
         title: "No mapped requests",
-        detail:
-          "No mapped requests in this domain during the 2016 arrival cohort. This is a true zero request count, not a zero closure probability.",
+        detail: "No mapped requests in this domain during the 2016 arrival cohort.",
         requestCount: 0,
         knownTimingOutcomes30d: 0,
         knownTimingOutcomes180d: 0,
@@ -231,8 +337,7 @@ export function getRecordedResponsePresentation(
       return {
         status,
         title: "Closure timing unavailable",
-        detail:
-          "Requests are present, but no valid tract-specific timing outcomes are available.",
+        detail: "Requests are present, but closure timing is unavailable for this tract and domain.",
         requestCount,
         knownTimingOutcomes30d: 0,
         knownTimingOutcomes180d,
@@ -242,9 +347,8 @@ export function getRecordedResponsePresentation(
     case "insufficient_sample":
       return {
         status,
-        title: "Insufficient tract-specific sample",
-        detail:
-          "A tract-specific closure curve, open-at-age estimate, historical replay, and uncertainty are not shown.",
+        title: "Small response sample",
+        detail: "Tract-specific response modeling is not shown.",
         requestCount,
         knownTimingOutcomes30d,
         knownTimingOutcomes180d,
@@ -284,8 +388,8 @@ export function getRecordedResponsePresentation(
 
       return {
         status,
-        title: "Recorded administrative response",
-        detail: `${knownTimingOutcomes30d.toLocaleString("en-US")} known timing outcomes support tract-specific estimates.`,
+        title: "Recorded response",
+        detail: `Sample: ${knownTimingOutcomes30d.toLocaleString("en-US")} requests.`,
         requestCount,
         knownTimingOutcomes30d,
         knownTimingOutcomes180d,
@@ -338,21 +442,27 @@ function ineligibilityWarning(
 
 export function buildTractPresentation(
   feature: TractFeature,
-  domain: DomainKey,
+  domain: ExploreDomainKey,
 ): TractPresentation {
   const complaintDomains = DOMAIN_KEYS.map((key) =>
     getComplaintDomainPresentation(feature.properties, key),
   );
-  const response = getRecordedResponsePresentation(feature.properties, domain);
+  const response =
+    domain === "collective"
+      ? null
+      : getRecordedResponsePresentation(feature.properties, domain);
   const warnings: string[] = [];
   const eligibilityWarning = ineligibilityWarning(feature.properties);
   if (eligibilityWarning) warnings.push(eligibilityWarning);
-  if (response.status !== "sufficient") warnings.push(response.detail);
+  if (response && response.status !== "sufficient") warnings.push(response.detail);
 
   return {
     feature,
     complaintDomains,
-    activeDomain: complaintDomains.find((item) => item.domain === domain)!,
+    activeDomain:
+      domain === "collective"
+        ? getCollectiveComplaintPresentation(feature.properties)
+        : complaintDomains.find((item) => item.domain === domain)!,
     response,
     warnings,
   };

@@ -31,7 +31,7 @@ export interface ChartProps {
   maxY?: number;
   className?: string;
   emptyMessage?: string;
-  tableSummary?: string;
+  tableSummary?: string | null;
 }
 
 const WIDTH = 800;
@@ -352,10 +352,11 @@ export function Chart({
           ) : null,
         )}
       </svg>
-      <details className={styles.tableDetails}>
-        <summary>{tableSummary}</summary>
-        <div className={styles.tableScroll}>
-          <table>
+      {tableSummary ? (
+        <details className={styles.tableDetails}>
+          <summary>{tableSummary}</summary>
+          <div className={styles.tableScroll}>
+            <table>
             <thead>
               <tr>
                 <th scope="col">Period</th>
@@ -384,9 +385,10 @@ export function Chart({
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
-      </details>
+            </table>
+          </div>
+        </details>
+      ) : null}
     </figure>
   );
 }

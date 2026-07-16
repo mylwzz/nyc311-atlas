@@ -1,8 +1,8 @@
-# NYC 311 Priority Atlas
+# NYC 311 Atlas
 
 ## One-sentence definition
 
-NYC 311 Priority Atlas is an explorer-first urban-service intelligence workspace that lets users investigate complaint demand, recorded administrative closure, neighborhood context, prioritization assumptions, and the aging of historical request cohorts across New York City census tracts, with Claude as an optional interpretation layer.
+NYC 311 Atlas turns one validated historical 311 snapshot into a map-first product for exploring complaint demand, neighborhood context, recorded administrative response, prioritization assumptions, and workload aging across New York City census tracts, with Claude as an optional interpretation layer.
 
 ## Core experience
 

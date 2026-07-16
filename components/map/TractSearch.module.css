@@ -1,6 +1,7 @@
 .search {
   position: relative;
-  width: min(19rem, calc(100vw - 2rem));
+  width: 100%;
+  min-width: 0;
   color: #292825;
   font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
 }

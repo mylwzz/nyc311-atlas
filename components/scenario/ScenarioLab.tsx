@@ -17,6 +17,7 @@ import type {
 import { formatPercent } from "@/lib/formatting";
 import { createScenarioIndex, scenarioId } from "@/lib/scenario";
 
+import { Chart } from "../ui/Chart";
 import {
   ScenarioControls,
   type ScenarioControlValues,
@@ -44,80 +45,205 @@ export interface ScenarioLabProps {
   onControlsChange: (controls: Partial<ScenarioControlValues>) => void;
   onCurrentScenarioChange: (scenarioId: string | null) => void;
   onPinnedScenarioChange: (scenarioId: string | null) => void;
+  onReadMethod?: () => void;
 }
 
-function ScenarioHeader({ scenario }: { scenario: Scenario }) {
-  return (
-    <div className={styles.scenarioHeader}>
-      <div>
-        <div className="eyebrow">Current selection scenario</div>
-        <h3 className={styles.scenarioTitle}>{scenario.domainLabel}</h3>
-        <p className="metadata">
-          {scenario.scalingMode === "rank_balanced"
-            ? "Rank-balanced"
-            : "Magnitude-sensitive"}
-          {" · priority portfolio size "}
-          {scenario.k}
-          {" · alpha "}
-          {scenario.alphaIntensity.toFixed(1)}
-        </p>
-      </div>
-      <code className={styles.scenarioId}>{scenario.id}</code>
-    </div>
-  );
-}
+const SCALING_LABELS: Record<ScalingMode, string> = {
+  rank_balanced: "Rank-balanced",
+  magnitude_sensitive: "Magnitude-sensitive",
+};
 
-function SensitivityTable({
+const technicalNumber = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 8,
+});
+
+function PriorityTradeoff({
   tradeoff,
   current,
 }: {
   tradeoff: Tradeoff;
   current: Scenario;
 }) {
-  const points = tradeoff.points.filter(
-    (point) =>
-      point.scalingMode === current.scalingMode &&
-      point.domainKey === current.domainKey &&
-      point.k === current.k,
-  );
+  const points = tradeoff.points
+    .filter(
+      (point) =>
+        point.scalingMode === current.scalingMode &&
+        point.domainKey === current.domainKey &&
+        point.k === current.k,
+    )
+    .sort((left, right) => left.alphaIntensity - right.alphaIntensity);
+
+  const data = points.map((point) => ({
+    key: point.scenarioId,
+    label: `${Math.round(point.alphaIntensity * 100)}%`,
+    values: {
+      intensity: point.intensityRetentionVsRateMaxPct,
+      lowerIncome: point.selectedQ1TractSharePct,
+      current:
+        point.scenarioId === current.id
+          ? point.intensityRetentionVsRateMaxPct
+          : null,
+    },
+  }));
 
   return (
-    <details className="disclosure">
-      <summary>Alpha sensitivity</summary>
-      <div className={styles.sensitivityTableWrap}>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th scope="col">Alpha</th>
-              <th scope="col">Intensity retained</th>
-              <th scope="col">Q1 tract share</th>
-              <th scope="col">Mapped volume</th>
-              <th scope="col">Population share</th>
-            </tr>
-          </thead>
-          <tbody>
-            {points.map((point) => (
-              <tr
-                key={point.scenarioId}
-                className={
-                  point.scenarioId === current.id ? styles.currentPoint : undefined
-                }
-              >
-                <th scope="row">{point.alphaIntensity.toFixed(1)}</th>
-                <td>{formatPercent(point.intensityRetentionVsRateMaxPct)}</td>
-                <td>{formatPercent(point.selectedQ1TractSharePct)}</td>
-                <td>{formatPercent(point.mappedComplaintVolumeCapturedPct)}</td>
-                <td>{formatPercent(point.cityPopulationInSelectedTractsPct)}</td>
+    <div className={styles.tradeoff}>
+      <Chart
+        title="How the selection changes"
+        description="Move from lower-income priority toward complaint intensity. The active balance is marked on the complaint-intensity line."
+        data={data}
+        series={[
+          {
+            key: "intensity",
+            label: "Complaint intensity retained",
+            color: "#596f65",
+            type: "line",
+          },
+          {
+            key: "lowerIncome",
+            label: "Lower-income tract share",
+            color: "#a57859",
+            type: "line",
+          },
+          {
+            key: "current",
+            label: "Current definition",
+            color: "#a13f32",
+            type: "line",
+          },
+        ]}
+        yLabel="Percent"
+        height={246}
+        valueFormatter={formatPercent}
+        tableSummary={null}
+      />
+      <p className={styles.currentBalance}>
+        Current balance: {Math.round(current.alphaIntensity * 100)}% complaint
+        intensity · {Math.round(current.alphaLowerIncome * 100)}% lower-income
+        priority
+      </p>
+      <details className="disclosure">
+        <summary>View data table</summary>
+        <div className={styles.sensitivityTableWrap}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th scope="col">Priority balance</th>
+                <th scope="col">Intensity retained</th>
+                <th scope="col">Lower-income tract share</th>
+                <th scope="col">Mapped volume</th>
+                <th scope="col">Population share</th>
               </tr>
-            ))}
+            </thead>
+            <tbody>
+              {points.map((point) => (
+                <tr
+                  key={point.scenarioId}
+                  className={
+                    point.scenarioId === current.id
+                      ? styles.currentPoint
+                      : undefined
+                  }
+                >
+                  <th scope="row">
+                    {Math.round(point.alphaIntensity * 100)}% complaint intensity
+                  </th>
+                  <td>
+                    {formatPercent(point.intensityRetentionVsRateMaxPct)}
+                  </td>
+                  <td>{formatPercent(point.selectedQ1TractSharePct)}</td>
+                  <td>
+                    {formatPercent(point.mappedComplaintVolumeCapturedPct)}
+                  </td>
+                  <td>
+                    {formatPercent(point.cityPopulationInSelectedTractsPct)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function DefinitionTechnicalDetails({ scenario }: { scenario: Scenario }) {
+  return (
+    <details className="disclosure">
+      <summary>Technical details</summary>
+      <div className={styles.technicalDetails}>
+        <table className="data-table">
+          <tbody>
+            <tr>
+              <th scope="row">Scenario ID</th>
+              <td>
+                <code>{scenario.id}</code>
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">K</th>
+              <td>{scenario.k}</td>
+            </tr>
+            <tr>
+              <th scope="row">Alpha</th>
+              <td>{scenario.alphaIntensity.toFixed(1)}</td>
+            </tr>
+            <tr>
+              <th scope="row">Eligible tract count</th>
+              <td>
+                {scenario.selection.eligibleTractCount.toLocaleString("en-US")}
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Selection cutoff score</th>
+              <td>
+                {technicalNumber.format(
+                  scenario.selection.selectionCutoffScore,
+                )}
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Target metric field</th>
+              <td>
+                <code>{scenario.targetMetric}</code>
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Count metric field</th>
+              <td>
+                <code>{scenario.countMetric}</code>
+              </td>
+            </tr>
           </tbody>
         </table>
+        <p className="helper-text">
+          score = alpha × scaled complaint intensity + (1 − alpha) × scaled
+          lower-income priority. Tracts are ranked by score, ties are ordered by
+          GEOID, and the first K are surfaced.
+        </p>
       </div>
-      <p className="helper-text">
-        This table holds scoring method, domain, and priority portfolio size
-        constant while showing all eleven artifact-defined alpha values.
-      </p>
     </details>
+  );
+}
+
+function LoadingState() {
+  return (
+    <section className="panel-section" aria-labelledby="prioritize-heading">
+      <h2 id="prioritize-heading" className="section-title">
+        Prioritize tracts
+      </h2>
+      <p className="helper-text">
+        Rank tracts prioritizing complaint intensity and lower-income priority,
+        then choose how many highest-ranked tracts show.
+      </p>
+      <div className={styles.loading} role="status" aria-live="polite">
+        <span className="loading-line" />
+        <span className="loading-line" />
+        <span className="loading-line" />
+        <p className="helper-text">Loading validated priority definitions…</p>
+      </div>
+    </section>
   );
 }
 
@@ -137,34 +263,29 @@ export function ScenarioLab({
   onControlsChange,
   onCurrentScenarioChange,
   onPinnedScenarioChange,
+  onReadMethod,
 }: ScenarioLabProps) {
   useEffect(() => {
     if (loadStatus === "idle") void onLoad();
   }, [loadStatus, onLoad]);
 
-  const scenarioIndex = useMemo(
-    () => {
-      if (!scenarios) return null;
-      createScenarioIndex(scenarios.scenarios);
-      return new Map<string, Scenario>(
-        scenarios.scenarios.map((scenario) => [scenario.id, scenario]),
-      );
-    },
-    [scenarios],
-  );
-  const current = useMemo(
-    () => {
-      if (!scenarioIndex) return null;
-      const id = scenarioId({
-        scalingMode,
-        domainKey: domain,
-        k,
-        alphaIntensity: alpha,
-      });
-      return id ? (scenarioIndex.get(id) ?? null) : null;
-    },
-    [alpha, domain, k, scalingMode, scenarioIndex],
-  );
+  const scenarioIndex = useMemo(() => {
+    if (!scenarios) return null;
+    createScenarioIndex(scenarios.scenarios);
+    return new Map<string, Scenario>(
+      scenarios.scenarios.map((scenario) => [scenario.id, scenario]),
+    );
+  }, [scenarios]);
+  const current = useMemo(() => {
+    if (!scenarioIndex) return null;
+    const id = scenarioId({
+      scalingMode,
+      domainKey: domain,
+      k,
+      alphaIntensity: alpha,
+    });
+    return id ? (scenarioIndex.get(id) ?? null) : null;
+  }, [alpha, domain, k, scalingMode, scenarioIndex]);
   const pinned = useMemo(
     () =>
       pinnedScenarioId && scenarioIndex
@@ -179,32 +300,21 @@ export function ScenarioLab({
   }, [current, currentScenarioId, onCurrentScenarioChange]);
 
   if (loadStatus === "idle" || loadStatus === "loading") {
-    return (
-      <section className="panel-section" aria-labelledby="scenario-lab-heading">
-        <div className="eyebrow">Selection scenarios</div>
-        <h2 id="scenario-lab-heading" className="section-title">
-          Scenario Lab
-        </h2>
-        <div className={styles.loading} role="status" aria-live="polite">
-          <span className="loading-line" />
-          <span className="loading-line" />
-          <span className="loading-line" />
-          <p className="helper-text">Validating 550 selection scenarios…</p>
-        </div>
-      </section>
-    );
+    return <LoadingState />;
   }
 
   if (loadStatus === "error" || !scenarios || !tradeoff) {
     return (
-      <section className="panel-section" aria-labelledby="scenario-lab-heading">
-        <div className="eyebrow">Selection scenarios</div>
-        <h2 id="scenario-lab-heading" className="section-title">
-          Scenario Lab
+      <section className="panel-section" aria-labelledby="prioritize-heading">
+        <h2 id="prioritize-heading" className="section-title">
+          Prioritize tracts
         </h2>
         <div className="error-state" role="alert">
-          <strong>Selection scenarios could not be loaded.</strong>
-          <p>{loadError?.message ?? "The validated scenario artifacts are unavailable."}</p>
+          <strong>Priority definitions could not be loaded.</strong>
+          <p>
+            {loadError?.message ??
+              "The validated prioritization artifacts are unavailable."}
+          </p>
           <button className="button" type="button" onClick={() => void onLoad()}>
             Try again
           </button>
@@ -215,13 +325,13 @@ export function ScenarioLab({
 
   if (!current) {
     return (
-      <section className="panel-section" aria-labelledby="scenario-lab-heading">
+      <section className="panel-section" aria-labelledby="prioritize-heading">
+        <h2 id="prioritize-heading" className="section-title">
+          Prioritize tracts
+        </h2>
         <div className="error-state" role="alert">
-          <strong>No matching selection scenario exists.</strong>
-          <p>
-            The validated artifact does not contain this exact combination of
-            scoring method, domain, K, and alpha.
-          </p>
+          <strong>No validated priority definition matches these settings.</strong>
+          <p>Choose another supported combination and try again.</p>
         </div>
       </section>
     );
@@ -230,98 +340,105 @@ export function ScenarioLab({
   const pinIsCurrent = pinnedScenarioId === current.id;
 
   return (
-    <section className={styles.lab} aria-labelledby="scenario-lab-heading">
+    <section className={styles.lab} aria-labelledby="prioritize-heading">
       <header className={styles.labHeader}>
-        <div>
-          <div className="eyebrow">Selection scenarios</div>
-          <h2 id="scenario-lab-heading" className="section-title">
-            Scenario Lab
-          </h2>
-          <p className="helper-text">
-            Explore all {scenarios.scenarios.length} deterministic selection
-            scenarios. Scenario membership remains separate from manual tract
-            comparison.
-          </p>
-        </div>
+        <h2 id="prioritize-heading" className="section-title">
+          Prioritize tracts
+        </h2>
+        <p className="helper-text">
+          Rank eligible tracts by complaint intensity and lower-income priority,
+          then choose how many of the highest-ranked tracts to show.
+        </p>
       </header>
 
-      <div className={styles.section} aria-labelledby="scenario-finder-heading">
-        <div className="eyebrow">Exported scenario library</div>
-        <h3 id="scenario-finder-heading" className={styles.subheading}>
-          Scenario Finder
+      <div className={styles.section} aria-labelledby="priority-settings-heading">
+        <div className="eyebrow">How priority is defined</div>
+        <h3 id="priority-settings-heading" className={styles.subheading}>
+          Set the definition
         </h3>
-        <p className="helper-text">
-          Filter the {scenarios.scenarios.length} exported scenarios by scoring
-          method, domain, priority portfolio size, and alpha. Each combination
-          opens an existing scenario; it never generates a new result.
-        </p>
+        <ol className={styles.definitionSteps}>
+          <li>
+            Compare complaint intensity (<em>complaints per 1,000 residents</em>) with
+            lower-income priority, based on median household income.
+          </li>
+          <li>
+            Choose how the two measures are scaled and how much each counts.
+          </li>
+          <li>
+            Rank eligible tracts by the combined score, then show the number of
+            highest-ranked tracts you select.
+          </li>
+        </ol>
         <ScenarioControls
           scalingMode={scalingMode}
           domain={domain}
           k={k}
           alpha={alpha}
+          onReadMethod={onReadMethod}
           onChange={onControlsChange}
         />
-        <p className={styles.finderResult} role="status" aria-live="polite">
-          1 exact match · {current.id}
+        <p className="helper-text">
+          Every supported combination opens one of {scenarios.scenarios.length}{" "}
+          validated historical definitions. It does not generate a policy
+          recommendation.
         </p>
       </div>
 
-      <div className={styles.section}>
-        <ScenarioHeader scenario={current} />
-        <div className={styles.definitionGrid}>
-          <div>
-            <span>Eligible tracts evaluated</span>
-            <strong>{current.selection.eligibleTractCount.toLocaleString("en-US")}</strong>
-          </div>
-          <div>
-            <span>Tracts in selection</span>
-            <strong>{current.selection.rankedSelectedGeoids.length}</strong>
-          </div>
-          <div>
-            <span>Complaint metric</span>
-            <strong>{current.targetMetric}</strong>
-          </div>
-          <div>
-            <span>Count metric</span>
-            <strong>{current.countMetric}</strong>
-          </div>
-        </div>
+      <div className={styles.section} aria-labelledby="priority-result-heading">
+        <div className="eyebrow">Current priority definition</div>
+        <h3 id="priority-result-heading" className={styles.scenarioTitle}>
+          {current.domainLabel}
+        </h3>
+        <p className="metadata">
+          {SCALING_LABELS[current.scalingMode]} ·{" "}
+          {Math.round(current.alphaIntensity * 100)}% complaint intensity ·{" "}
+          {Math.round(current.alphaLowerIncome * 100)}% lower-income priority
+        </p>
         <ScenarioMetrics scenario={current} />
-        <SensitivityTable tradeoff={tradeoff} current={current} />
+        <PriorityTradeoff tradeoff={tradeoff} current={current} />
+        <DefinitionTechnicalDetails scenario={current} />
       </div>
 
       <div className={styles.section}>
         <div className="section-heading-row">
           <div>
             <div className="eyebrow">Controlled comparison</div>
-            <h3 className={styles.subheading}>Pinned selection scenario</h3>
+            <h3 className={styles.subheading}>
+              Compare with another definition
+            </h3>
           </div>
-          <button
-            type="button"
-            className={`button${pinIsCurrent ? " active" : ""}`}
-            onClick={() =>
-              onPinnedScenarioChange(pinIsCurrent ? null : current.id)
-            }
-          >
-            {pinIsCurrent
-              ? "Unpin"
-              : pinnedScenarioId
-                ? "Replace pin"
-                : "Pin current"}
-          </button>
+          <div className={styles.comparisonActions}>
+            <button
+              type="button"
+              className="button"
+              disabled={pinIsCurrent}
+              onClick={() => onPinnedScenarioChange(current.id)}
+            >
+              {pinIsCurrent ? "Definition saved" : "Save current definition"}
+            </button>
+            {pinnedScenarioId ? (
+              <button
+                type="button"
+                className="button"
+                onClick={() => onPinnedScenarioChange(null)}
+              >
+                Clear comparison
+              </button>
+            ) : null}
+          </div>
         </div>
 
         {pinnedScenarioId && !pinned ? (
           <div className="warning-box" role="status">
-            <strong>The pinned scenario is not in this artifact set.</strong>
-            <p className="helper-text">Pinned ID: {pinnedScenarioId}</p>
+            <strong>
+              The saved definition is not available in this artifact set.
+            </strong>
             <button
               className="button"
               type="button"
               onClick={() => onPinnedScenarioChange(null)}
             >
-              Clear pin
+              Clear comparison
             </button>
           </div>
         ) : pinned ? (
@@ -332,8 +449,8 @@ export function ScenarioLab({
           />
         ) : (
           <div className="status-box">
-            Pin the current selection scenario, then change one or more controls
-            to see entered, exited, and shared tracts.
+            Save the current definition, then change a setting to see shared,
+            newly surfaced, and no-longer-surfaced tracts.
           </div>
         )}
       </div>
@@ -342,7 +459,8 @@ export function ScenarioLab({
         <div className="eyebrow">Transparent scoring</div>
         <h3 className={styles.subheading}>Explain any tract</h3>
         <p className="helper-text">
-          Recompute an artifact-defined tract score without changing the selection.
+          See how an artifact-defined score leads to rank and membership without
+          changing the priority definition.
         </p>
         <ScenarioScoreExplanation
           scenario={current}

@@ -8,6 +8,18 @@ export const DOMAIN_KEYS = [
 
 export type DomainKey = (typeof DOMAIN_KEYS)[number];
 
+/**
+ * `collective` is a computed Explore-only view. It is deliberately excluded
+ * from `DomainKey`, which remains the five-value artifact, scenario, and
+ * workload contract.
+ */
+export const COLLECTIVE_DOMAIN_KEY = "collective" as const;
+export type ExploreDomainKey = DomainKey | typeof COLLECTIVE_DOMAIN_KEY;
+export const EXPLORE_DOMAIN_KEYS = [
+  COLLECTIVE_DOMAIN_KEY,
+  ...DOMAIN_KEYS,
+] as const satisfies readonly ExploreDomainKey[];
+
 export const DOMAIN_CONFIG: Record<
   DomainKey,
   { label: string; shortLabel: string; propertyPrefix: string }
@@ -39,6 +51,17 @@ export const DOMAIN_CONFIG: Record<
   },
 };
 
+export const EXPLORE_DOMAIN_CONFIG: Record<
+  ExploreDomainKey,
+  { label: string; shortLabel: string }
+> = {
+  collective: {
+    label: "Collective",
+    shortLabel: "Collective",
+  },
+  ...DOMAIN_CONFIG,
+};
+
 export const MAP_METRICS = [
   "complaint_intensity",
   "mapped_complaint_count",
@@ -62,15 +85,15 @@ export const MAP_METRIC_LABELS: Record<MapMetric, string> = {
   mapped_complaint_count: "Mapped complaint count",
   median_household_income: "Median household income",
   allocation_eligibility: "Allocation eligibility",
-  recorded_closure_30d: "Recorded closure within 30 days",
-  recorded_closure_180d: "Recorded closure within 180 days",
-  median_recorded_days_to_closure: "Median recorded days to closure",
-  not_recorded_closed_age_30d: "Not recorded closed by age 30",
-  not_recorded_closed_age_180d: "Not recorded closed by age 180",
-  mean_complete_period_arrivals: "Mean complete-period arrivals",
-  median_complete_period_arrivals: "Median complete-period arrivals",
-  expected_cohort_open_age_30d: "Expected cohort open at age 30",
-  expected_cohort_open_age_180d: "Expected cohort open at age 180",
+  recorded_closure_30d: "Closed within 30 days",
+  recorded_closure_180d: "Closed within ~6 months",
+  median_recorded_days_to_closure: "Median time to close",
+  not_recorded_closed_age_30d: "Still open after 30 days",
+  not_recorded_closed_age_180d: "Still open after ~6 months",
+  mean_complete_period_arrivals: "Average new requests per full month",
+  median_complete_period_arrivals: "Typical new requests per full month",
+  expected_cohort_open_age_30d: "Modeled still open after 30 days",
+  expected_cohort_open_age_180d: "Modeled still open after ~6 months",
 };
 
 export const NEIGHBORHOOD_METRICS = [
@@ -121,4 +144,14 @@ export function domainField(domain: DomainKey, suffix: string): string {
 
 export function isDomainKey(value: string): value is DomainKey {
   return DOMAIN_KEYS.includes(value as DomainKey);
+}
+
+export function isExploreDomainKey(value: string): value is ExploreDomainKey {
+  return EXPLORE_DOMAIN_KEYS.includes(value as ExploreDomainKey);
+}
+
+export function isCollectiveDomain(
+  domain: ExploreDomainKey,
+): domain is typeof COLLECTIVE_DOMAIN_KEY {
+  return domain === COLLECTIVE_DOMAIN_KEY;
 }

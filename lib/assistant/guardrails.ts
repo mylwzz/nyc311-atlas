@@ -49,7 +49,7 @@ const TASK_INSTRUCTIONS: Readonly<Record<AssistantTask, string>> = {
   explain_scenario_membership:
     "Explain deterministic selection-scenario membership, score controls, and supplied metrics without recalculating or changing membership.",
   explain_workload_replay:
-    "Explain the supplied historical replay and sparse-sample state. Describe recorded administrative closure and expected open balance only.",
+    "Explain the supplied historical replay and sparse-sample state. Describe recorded administrative closure and modeled still-open requests only.",
   interpret_workload_assumptions:
     "Interpret the supplied demand and recorded closure-curve assumptions as an assumption-based workload scenario.",
   generate_hypotheses:

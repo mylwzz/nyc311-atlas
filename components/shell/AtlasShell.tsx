@@ -1,22 +1,34 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import { AssistantPanel, type AssistantPanelProps } from "@/components/assistant/AssistantPanel";
 import { MapControls } from "@/components/explore/MapControls";
 import { SelectedChips } from "@/components/explore/SelectedChips";
-import {
-  TractComparison,
-  type TractNeighborhoodContext,
-} from "@/components/explore/TractComparison";
+import { TractComparison } from "@/components/explore/TractComparison";
 import { getRecordedResponsePresentation } from "@/components/explore/tractPresentation";
 import { AtlasMap } from "@/components/map";
-import { MethodologyModal } from "@/components/methodology/MethodologyModal";
+import {
+  MethodologyModal,
+  type MethodologyTopic,
+} from "@/components/methodology/MethodologyModal";
 import { NeighborhoodPanel } from "@/components/neighborhood/NeighborhoodPanel";
 import { ScenarioLab } from "@/components/scenario";
 import { WorkloadPanel } from "@/components/workload/WorkloadPanel";
 import type { Scenario, Workload } from "@/lib/artifacts";
-import { DOMAIN_CONFIG, type WorkloadScope, type Workspace } from "@/lib/domain";
+import {
+  DOMAIN_CONFIG,
+  type WorkloadScope,
+  type Workspace,
+} from "@/lib/domain";
 import { getActiveDomainSummary, getMapMetricDatum } from "@/lib/map";
 import { createScenarioIndex, lookupScenario } from "@/lib/scenario";
 import {
@@ -30,12 +42,57 @@ import { resolveExportedBaselineUncertainty } from "@/lib/uncertainty";
 import { aggregateWorkloadScope, evaluateWorkload } from "@/lib/workload";
 
 import { ArtifactProvider, useArtifacts } from "./ArtifactProvider";
+import {
+  DataNotes,
+  type DataNotesMethodologyTopic,
+} from "./DataNotes";
 
-const WORKSPACES: readonly { key: Workspace; label: string }[] = [
-  { key: "explore", label: "Explore" },
-  { key: "scenario", label: "Scenario Lab" },
-  { key: "workload", label: "Workload" },
+const WORKSPACES: readonly {
+  key: Workspace;
+  label: string;
+  subtitle: string;
+}[] = [
+  {
+    key: "explore",
+    label: "Explore",
+    subtitle: "Understand a tract and its surroundings.",
+  },
+  {
+    key: "scenario",
+    label: "Prioritize",
+    subtitle: "Test how different definitions of priority change which tracts rise.",
+  },
+  {
+    key: "workload",
+    label: "Model",
+    subtitle: "Replay historical request flow and test explicit assumptions.",
+  },
 ];
+
+const RAIL_WIDTH_STORAGE_KEY = "nyc311-atlas:analysis-rail-width";
+const MIN_RAIL_WIDTH = 340;
+const MAX_RAIL_WIDTH = 760;
+
+function clampRailWidth(value: number): number {
+  if (typeof window === "undefined") {
+    return Math.min(MAX_RAIL_WIDTH, Math.max(MIN_RAIL_WIDTH, value));
+  }
+  const available = Math.max(MIN_RAIL_WIDTH, window.innerWidth - 320);
+  return Math.min(
+    Math.min(MAX_RAIL_WIDTH, available),
+    Math.max(MIN_RAIL_WIDTH, value),
+  );
+}
+
+function blocksSpatialShortcut(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  return Boolean(
+    target.closest(
+      "input, textarea, select, button, a, summary, [contenteditable]:not([contenteditable='false']), [role='button']",
+    ),
+  );
+}
 
 function scenarioContext(
   scenario: Scenario | null,
@@ -127,6 +184,13 @@ function AtlasWorkspace() {
   const [urlReady, setUrlReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [shareNotice, setShareNotice] = useState<string | null>(null);
+  const [dataNotesOpen, setDataNotesOpen] = useState(false);
+  const [methodologyTopic, setMethodologyTopic] =
+    useState<MethodologyTopic>("overview");
+  const [railWidth, setRailWidth] = useState<number | null>(null);
+  const [spatialAnnouncement, setSpatialAnnouncement] = useState("");
+  const railRef = useRef<HTMLElement>(null);
+  const railResizeActive = useRef(false);
 
   if (!manifest || !metadata || !context || !tracts) {
     throw new Error("Ready artifact state is incomplete.");
@@ -147,6 +211,9 @@ function AtlasWorkspace() {
     }),
     [featureByGeoid, state.selectedGeoids],
   );
+  const activeFeature = state.activeGeoid
+    ? featureByGeoid.get(state.activeGeoid) ?? null
+    : null;
 
   const neighborhoodFor = useMemo(() => {
     const adjacency = Object.fromEntries(
@@ -225,6 +292,7 @@ function AtlasWorkspace() {
     const selected = (parsed.selectedGeoids ?? []).filter((geoid) => knownGeoids.has(geoid));
     if (parsed.workspace) state.setWorkspace(parsed.workspace);
     if (parsed.activeDomain) state.setDomain(parsed.activeDomain);
+    if (parsed.exploreDomain) state.setExploreDomain(parsed.exploreDomain);
     if (parsed.activeMapMetric) state.setMapMetric(parsed.activeMapMetric);
     state.selectTracts(selected, parsed.activeGeoid ?? null);
     if (parsed.neighborhood) {
@@ -256,16 +324,88 @@ function AtlasWorkspace() {
   }, [shareable, urlReady]);
 
   useEffect(() => {
+    const stored = Number(window.localStorage.getItem(RAIL_WIDTH_STORAGE_KEY));
+    const frame = window.requestAnimationFrame(() => {
+      if (Number.isFinite(stored) && stored > 0) {
+        setRailWidth(clampRailWidth(stored));
+      }
+    });
+    const onResize = () => {
+      setRailWidth((current) =>
+        current === null ? null : clampRailWidth(current),
+      );
+    };
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", onResize);
+    };
+  }, []);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && selectedCount > 0) {
         const target = event.target as HTMLElement | null;
         if (target?.closest("[role='dialog']")) return;
         clearSelection();
+        return;
       }
+
+      if (event.code !== "Space" && event.key !== " ") return;
+      if (state.workspace !== "explore" || !state.activeGeoid) return;
+      if (state.methodologyOpen || dataNotesOpen) return;
+      if (blocksSpatialShortcut(event.target)) return;
+      if (document.querySelector(".analysis-rail details[open], [role='dialog']")) {
+        return;
+      }
+
+      event.preventDefault();
+      const enabled = !state.neighborhood.enabled;
+      state.setNeighborhoodEnabled(enabled);
+      setSpatialAnnouncement(
+        enabled
+          ? "Nearby tract comparison on."
+          : "Nearby tract comparison off.",
+      );
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [clearSelection, selectedCount]);
+  }, [
+    clearSelection,
+    dataNotesOpen,
+    selectedCount,
+    state.activeGeoid,
+    state.methodologyOpen,
+    state.neighborhood.enabled,
+    state.setNeighborhoodEnabled,
+    state.workspace,
+    state,
+  ]);
+
+  const resizeRailFromPointer = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!railResizeActive.current) return;
+      const next = clampRailWidth(window.innerWidth - event.clientX);
+      setRailWidth(next);
+    },
+    [],
+  );
+
+  const finishRailResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!railResizeActive.current) return;
+      railResizeActive.current = false;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      const next = clampRailWidth(
+        railRef.current?.getBoundingClientRect().width ?? railWidth ?? 430,
+      );
+      setRailWidth(next);
+      window.localStorage.setItem(RAIL_WIDTH_STORAGE_KEY, String(next));
+    },
+    [railWidth],
+  );
 
   useEffect(() => {
     const scenarioNeeded = state.workspace === "workload" &&
@@ -376,31 +516,6 @@ function AtlasWorkspace() {
       summary: summarizeNeighborhoodMetric(activeNeighborhood.centerGeoid, activeNeighborhood.includedGeoids, values),
     };
   }, [activeNeighborhood, state.activeDomain, state.neighborhood.enabled, state.neighborhood.metric, tracts.features]);
-  const comparisonNeighborhood = useMemo<TractNeighborhoodContext | null>(() => {
-    if (!state.neighborhood.enabled || !activeNeighborhood) return null;
-    const values = Object.fromEntries(tracts.features.map((feature) => {
-      const datum = getMapMetricDatum(
-        feature.properties,
-        state.activeDomain,
-        state.neighborhood.metric,
-      );
-      return [
-        feature.properties.geoid,
-        typeof datum.value === "number" ? datum.value : null,
-      ];
-    }));
-    return {
-      geoid: activeNeighborhood.centerGeoid,
-      metric: state.neighborhood.metric,
-      radius: activeNeighborhood.radius,
-      isIsland: activeNeighborhood.isIsland,
-      summary: summarizeNeighborhoodMetric(
-        activeNeighborhood.centerGeoid,
-        activeNeighborhood.includedGeoids,
-        values,
-      ),
-    };
-  }, [activeNeighborhood, state.activeDomain, state.neighborhood.enabled, state.neighborhood.metric, tracts.features]);
   const assistantWorkload = useMemo(() => {
     if (!workload || scopeGeoids.length === 0) return null;
     try {
@@ -447,19 +562,23 @@ function AtlasWorkspace() {
     workload: assistantWorkload,
   }), [assistantNeighborhood, assistantSelected, assistantWorkload, currentScenario, pinnedScenario, state.activeDomain, state.activeMapMetric, state.selectedGeoids, state.workspace]);
 
-  const mapDomain = state.workspace === "scenario" ? state.scenario.domain : state.activeDomain;
+  const mapDomain = state.workspace === "scenario"
+    ? state.scenario.domain
+    : state.workspace === "explore"
+      ? state.exploreDomain
+      : state.activeDomain;
   const neighborhoodReferenceAvailable = useMemo(() => {
     if (!state.activeGeoid) return false;
     const activeFeature = featureByGeoid.get(state.activeGeoid);
     if (!activeFeature) return false;
     return typeof getMapMetricDatum(
       activeFeature.properties,
-      state.activeDomain,
+      state.exploreDomain,
       state.neighborhood.metric,
     ).value === "number";
   }, [
     featureByGeoid,
-    state.activeDomain,
+    state.exploreDomain,
     state.activeGeoid,
     state.neighborhood.metric,
   ]);
@@ -503,8 +622,15 @@ function AtlasWorkspace() {
     window.setTimeout(() => setShareNotice(null), 2400);
   }, []);
 
+  const openMethodology = useCallback((topic: MethodologyTopic) => {
+    setDataNotesOpen(false);
+    setMethodologyTopic(topic);
+    state.setMethodologyOpen(true);
+  }, [state]);
+
   const openWorkspace = useCallback((workspace: Workspace) => {
     state.setWorkspace(workspace);
+    setDataNotesOpen(false);
     if (window.matchMedia("(max-width: 940px)").matches) {
       state.setAssistantOpen(false);
     }
@@ -536,20 +662,49 @@ function AtlasWorkspace() {
           ))}
         </nav>
         <div className="topbar-actions">
-          <button className="button" type="button" onClick={copyShareLink}>Share</button>
+          <DataNotes
+            open={dataNotesOpen}
+            workspace={state.workspace}
+            activeFeature={activeFeature}
+            activeDomain={state.exploreDomain}
+            activeMapMetric={state.activeMapMetric}
+            activeNeighborhood={activeNeighborhood}
+            onOpenChange={setDataNotesOpen}
+            onOpenMethodology={(topic: DataNotesMethodologyTopic) =>
+              openMethodology(topic)
+            }
+          />
           <button
             className="button"
             type="button"
-            aria-label="Open methodology"
-            onClick={() => state.setMethodologyOpen(true)}
+            aria-label="Methodology"
+            onClick={() => openMethodology("overview")}
           >
             <span className="methodology-label">Methodology</span>
-            <span className="methodology-label-compact" aria-hidden="true">Methods</span>
+          </button>
+          <button
+            className="icon-button"
+            type="button"
+            aria-label="Copy a link to this view"
+            title="Copy a link to this view"
+            onClick={copyShareLink}
+          >
+            <svg className="share-icon" aria-hidden="true" viewBox="0 0 24 24">
+              <circle cx="18" cy="5" r="2.5" />
+              <circle cx="6" cy="12" r="2.5" />
+              <circle cx="18" cy="19" r="2.5" />
+              <path d="m8.3 10.9 7.4-4.5M8.3 13.1l7.4 4.5" />
+            </svg>
           </button>
         </div>
       </header>
 
-      <main className={`atlas-main${state.selectedGeoids.length > 1 ? " comparison-open" : ""}`}>
+      <main
+        className={`atlas-main${state.selectedGeoids.length > 1 ? " comparison-open" : ""}${state.workspace === "explore" && selectedCount === 0 ? " explore-empty" : ""}`}
+        style={railWidth === null
+          ? undefined
+          : ({ "--rail-width": `${railWidth}px` } as CSSProperties)}
+      >
         <div className="map-stage">
           <AtlasMap
             className="map-canvas"
@@ -568,10 +723,11 @@ function AtlasWorkspace() {
           >
             {state.workspace === "explore" ? (
               <MapControls
-                domain={state.activeDomain}
+                domain={state.exploreDomain}
                 metric={state.activeMapMetric}
                 features={tracts.features}
                 onDomainChange={state.setDomain}
+                onExploreDomainChange={state.setExploreDomain}
                 onMetricChange={state.setMapMetric}
                 onSelectTract={state.toggleTract}
               />
@@ -587,7 +743,43 @@ function AtlasWorkspace() {
           {shareNotice ? <div className="map-status toast" role="status">{shareNotice}</div> : null}
         </div>
 
+        <div
+          className="rail-resize-handle"
+          role="separator"
+          aria-label="Resize analysis panel"
+          aria-orientation="vertical"
+          aria-valuemin={MIN_RAIL_WIDTH}
+          aria-valuemax={MAX_RAIL_WIDTH}
+          aria-valuenow={Math.round(railWidth ?? 430)}
+          tabIndex={0}
+          onPointerDown={(event) => {
+            if (window.matchMedia("(max-width: 940px)").matches) return;
+            railResizeActive.current = true;
+            event.currentTarget.setPointerCapture(event.pointerId);
+            const current = railRef.current?.getBoundingClientRect().width;
+            if (current) setRailWidth(clampRailWidth(current));
+          }}
+          onPointerMove={resizeRailFromPointer}
+          onPointerUp={finishRailResize}
+          onPointerCancel={finishRailResize}
+          onKeyDown={(event) => {
+            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+              return;
+            }
+            event.preventDefault();
+            const current =
+              railRef.current?.getBoundingClientRect().width ?? railWidth ?? 430;
+            const direction = event.key === "ArrowLeft" ? 1 : -1;
+            const next = clampRailWidth(current + direction * 16);
+            setRailWidth(next);
+            window.localStorage.setItem(RAIL_WIDTH_STORAGE_KEY, String(next));
+          }}
+        >
+          <span aria-hidden="true" />
+        </div>
+
         <aside
+          ref={railRef}
           id="analysis-panel"
           className={`analysis-rail${state.assistant.open ? " assistant-open" : ""}`}
           aria-label="Analysis panel"
@@ -596,9 +788,11 @@ function AtlasWorkspace() {
             {state.workspace === "explore" ? (
               <>
                 <header className="rail-header">
-                  <div className="eyebrow">Explore workspace</div>
-                  <h2 className="rail-title">{DOMAIN_CONFIG[state.activeDomain].label}</h2>
-                  <p className="helper-text">Select up to five census tracts to inspect and compare the historical record.</p>
+                  <div className="eyebrow">Explore</div>
+                  <h2 className="rail-title">Explore the historical record</h2>
+                  <p className="helper-text">
+                    {WORKSPACES[0].subtitle}
+                  </p>
                   {selectedFeatures.length > 0 ? (
                     <SelectedChips
                       features={tracts.features}
@@ -610,24 +804,30 @@ function AtlasWorkspace() {
                   ) : null}
                 </header>
                 {selectedFeatures.length === 0 ? (
-                  <section className="panel-section"><div className="empty-state"><h3 className="section-title">Begin with the map</h3><p className="helper-text">Click a tract or use keyboard tract selection. Complaint activity remains useful before recorded-response evidence is available.</p></div></section>
+                  <section className="panel-section">
+                    <div className="empty-state explore-empty-state">
+                      <h3 className="section-title">Choose a tract to begin</h3>
+                      <p className="helper-text">
+                        Click the map or search by tract number. You can compare up
+                        to five tracts.
+                      </p>
+                    </div>
+                  </section>
                 ) : (
                   <TractComparison
                     features={tracts.features}
                     selectedGeoids={state.selectedGeoids}
                     activeGeoid={state.activeGeoid}
-                    domain={state.activeDomain}
+                    domain={state.exploreDomain}
                     tractDetails={tractDetails}
                     loading={lazyStatus.tractDetails === "loading"}
                     detailError={lazyErrors.tractDetails ?? null}
                     onLoad={loadTractDetails}
-                    workload={workload}
-                    workloadLoading={lazyStatus.workload === "loading"}
-                    workloadError={lazyErrors.workload ?? null}
-                    onLoadWorkload={loadWorkload}
                     onActivate={state.activateTract}
                     onRemove={state.toggleTract}
-                    neighborhoodSummary={comparisonNeighborhood}
+                    onReadPopulationMethod={() =>
+                      openMethodology("map_metrics")
+                    }
                   />
                 )}
                 {state.activeGeoid ? (
@@ -635,16 +835,27 @@ function AtlasWorkspace() {
                     enabled={state.neighborhood.enabled}
                     neighborhood={activeNeighborhood}
                     features={tracts.features}
-                    domain={state.activeDomain}
+                    domain={state.exploreDomain}
                     metric={state.neighborhood.metric}
                     onEnabledChange={state.setNeighborhoodEnabled}
                     onRadiusChange={state.setNeighborhoodRadius}
                     onMetricChange={state.setNeighborhoodMetric}
+                    onReadPopulationMethod={() =>
+                      openMethodology("map_metrics")
+                    }
                   />
                 ) : null}
               </>
             ) : state.workspace === "scenario" ? (
-              <ScenarioLab
+              <>
+                {state.exploreDomain === "collective" ? (
+                  <p className="domain-boundary-note" role="note">
+                    Collective is not part of the 550 validated priority
+                    scenarios. Showing {DOMAIN_CONFIG[state.scenario.domain].label};
+                    choose any of the five service domains below.
+                  </p>
+                ) : null}
+                <ScenarioLab
                 scenarios={scenarios}
                 tradeoff={artifacts.tradeoff}
                 tracts={tracts}
@@ -660,9 +871,19 @@ function AtlasWorkspace() {
                 onControlsChange={state.setScenarioControls}
                 onCurrentScenarioChange={state.setCurrentScenario}
                 onPinnedScenarioChange={state.setPinnedScenario}
-              />
+                onReadMethod={() => openMethodology("prioritization")}
+                />
+              </>
             ) : (
-              <WorkloadPanel
+              <>
+                {state.exploreDomain === "collective" ? (
+                  <p className="domain-boundary-note" role="note">
+                    Collective has no validated cross-domain workload or closure
+                    curve. Showing {DOMAIN_CONFIG[state.activeDomain].label};
+                    choose any of the five service domains below.
+                  </p>
+                ) : null}
+                <WorkloadPanel
                 workload={workload}
                 loading={lazyStatus.workload === "loading"}
                 error={lazyErrors.workload}
@@ -681,10 +902,25 @@ function AtlasWorkspace() {
                 onRequestAgeChange={state.setRequestAge}
                 onDemandChange={state.setDemandChange}
                 onClosureShift={state.setClosureShift}
-              />
+                onReadMethod={() => openMethodology("modeling")}
+                />
+              </>
             )}
           </div>
-          <AssistantPanel context={assistantContext} knownGeoids={knownGeoids} />
+          <AssistantPanel
+            key={
+              state.workspace === "explore" && state.exploreDomain === "collective"
+                ? "collective-disabled"
+                : "domain-specific"
+            }
+            context={assistantContext}
+            knownGeoids={knownGeoids}
+            disabledReason={
+              state.workspace === "explore" && state.exploreDomain === "collective"
+                ? "Collective interpretation is unavailable because Claude's grounded contract is domain-specific. Choose one of the five service domains to interpret tract or nearby-tract results. All manual Collective controls remain active."
+                : null
+            }
+          />
         </aside>
       </main>
 
@@ -707,24 +943,32 @@ function AtlasWorkspace() {
           </button>
         ))}
         <button
-          className="workspace-tab"
+          className="workspace-tab assistant-workspace-tab"
           type="button"
           role="tab"
           aria-controls="analysis-panel"
           aria-selected={state.assistant.open}
           onClick={() => state.setAssistantOpen(true)}
         >
-          Claude
+          <span>Interpretation</span>
+          <small>with Claude</small>
         </button>
       </nav>
 
       <MethodologyModal
         open={state.methodologyOpen}
         onClose={() => state.setMethodologyOpen(false)}
+        initialTopic={methodologyTopic}
+        onTopicChange={(topic: MethodologyTopic) =>
+          setMethodologyTopic(topic)
+        }
         manifest={manifest}
         metadata={metadata}
         context={context}
       />
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {spatialAnnouncement}
+      </p>
     </div>
   );
 }

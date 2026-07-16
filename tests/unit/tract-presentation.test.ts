@@ -37,11 +37,11 @@ describe("tract recorded-response presentation", () => {
 
     expect(response.status).toBe("insufficient_sample");
     expect(response.metrics).toBeNull();
-    expect(response.title).toBe("Insufficient tract-specific sample");
+    expect(response.title).toBe("Small response sample");
     expect(response).not.toHaveProperty("recordedClosureWithin30dPct");
   });
 
-  it("distinguishes no requests from a zero closure probability", () => {
+  it("distinguishes no requests from a supported numeric zero", () => {
     const response = getRecordedResponsePresentation(
       properties({
         housingBuildingResponseSampleStatus: "no_requests",
@@ -53,9 +53,10 @@ describe("tract recorded-response presentation", () => {
       "housing_building",
     );
 
+    expect(response.status).toBe("no_requests");
+    expect(response.requestCount).toBe(0);
     expect(response.metrics).toBeNull();
-    expect(response.detail).toContain("true zero request count");
-    expect(response.detail).toContain("not a zero closure probability");
+    expect(response).not.toHaveProperty("recordedClosureWithin30dPct");
   });
 
   it("preserves supported numeric zeros for a sufficient sample", () => {
@@ -92,7 +93,7 @@ describe("tract uncertainty presentation", () => {
       uncertainty: { "30": null, "180": null },
     } as unknown as TractWorkloadRecord);
 
-    expect(uncertainty.title).toBe("Insufficient tract-specific sample");
+    expect(uncertainty.title).toBe("Small response sample");
     expect(uncertainty.age30).toBeNull();
     expect(uncertainty.age180).toBeNull();
   });

@@ -4,3 +4,4 @@ export * from "./layers";
 export * from "./metrics";
 export * from "./scales";
 export * from "./search";
+export * from "./basemap";

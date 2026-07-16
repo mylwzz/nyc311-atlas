@@ -2,6 +2,8 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { REPRESENTATIVE_TRACTS } from "../fixtures/representative-tracts";
 import {
+  hoverActualTract,
+  nameOf,
   openAtlas,
   selectTract,
   setRange,
@@ -17,10 +19,10 @@ async function capture(page: Page, name: string): Promise<void> {
 }
 
 async function enableNeighborhood(page: Page, radius: "1" | "5") {
+  await page.getByRole("button", { name: "Compare with nearby tracts" }).click();
   const neighborhood = page.locator("section").filter({
-    has: page.getByRole("heading", { name: "Queen neighborhood" }),
+    has: page.getByRole("heading", { name: "Nearby tract comparison" }),
   });
-  await neighborhood.getByRole("button", { name: "Off" }).click();
   await neighborhood.locator("#neighborhood-radius").selectOption(radius);
   await expect(neighborhood.locator("#neighborhood-radius")).toHaveValue(radius);
   await expect(page.getByLabel("Map legend")).toContainText(
@@ -37,8 +39,20 @@ test.describe("@visual launch-state regression", () => {
   test("single tract", async ({ page }) => {
     await openAtlas(page);
     await selectTract(page, REPRESENTATIVE_TRACTS.high);
-    await expect(page.getByText("Top complaint types")).toBeVisible();
+    await expect(page.getByText("Complaint types and agencies", { exact: true })).toBeVisible();
+    await expect(page.getByText("Top complaint types")).toHaveCount(0);
     await capture(page, "atlas-single-tract.png");
+  });
+
+  test("tract hover details", async ({ page }) => {
+    await openAtlas(page);
+    await hoverActualTract(page, REPRESENTATIVE_TRACTS.sufficient);
+    await expect(
+      page.getByLabel(
+        `Map details for ${nameOf(REPRESENTATIVE_TRACTS.sufficient)}`,
+      ),
+    ).toContainText("Median income");
+    await capture(page, "atlas-tract-hover.png");
   });
 
   test("five-tract comparison", async ({ page }) => {
@@ -69,53 +83,57 @@ test.describe("@visual launch-state regression", () => {
     await openAtlas(page);
     await selectTract(page, REPRESENTATIVE_TRACTS.sparse);
     await expect(
-      page.getByText("Insufficient tract-specific sample", { exact: true }).first(),
+      page.getByText("Small response sample", { exact: true }).first(),
     ).toBeVisible();
     await capture(page, "atlas-sparse-tract.png");
   });
 
-  test("Scenario Lab", async ({ page }) => {
+  test("Prioritize", async ({ page }) => {
     await openAtlas(page);
-    await page.getByRole("tab", { name: "Scenario Lab" }).click();
-    await expect(page.getByText(/Explore all 550 deterministic selection scenarios/)).toBeVisible({
+    await page.getByRole("tab", { name: "Prioritize" }).click();
+    await expect(page.getByText("100 tracts surfaced", { exact: true })).toBeVisible({
       timeout: 20_000,
     });
     await capture(page, "atlas-scenario-lab.png");
   });
 
-  test("pinned Scenario Lab comparison", async ({ page }) => {
+  test("saved Prioritize comparison", async ({ page }) => {
     await openAtlas(page);
-    await page.getByRole("tab", { name: "Scenario Lab" }).click();
-    await expect(page.getByText(/Explore all 550 deterministic selection scenarios/)).toBeVisible({
+    await page.getByRole("tab", { name: "Prioritize" }).click();
+    await expect(page.getByText("100 tracts surfaced", { exact: true })).toBeVisible({
       timeout: 20_000,
     });
-    await page.getByRole("button", { name: "Pin current" }).click();
+    await page.getByRole("button", { name: "Save current definition" }).click();
     await setRange(page.locator("#scenario-alpha"), 0);
-    await expect(page.getByText("Entered", { exact: true })).toBeVisible();
+    await expect(page.getByText("Newly surfaced", { exact: true })).toBeVisible();
     await capture(page, "atlas-scenario-pinned.png");
   });
 
-  test("Workload historical replay", async ({ page }) => {
+  test("Model Historical", async ({ page }) => {
     await openAtlas(page);
     await selectTract(page, REPRESENTATIVE_TRACTS.sufficient);
-    await page.getByRole("tab", { name: "Workload" }).click();
+    await page.getByRole("tab", { name: "Model" }).click();
     await expect(page.getByText("13 periods")).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText("Expected open balance", { exact: true }).first()).toBeVisible();
+    await expect(
+      page.getByRole("figure", {
+        name: /Modeled requests still open over time/,
+      }),
+    ).toBeVisible();
     await capture(page, "atlas-workload-replay.png");
   });
 
-  test("Workload assumption scenario", async ({ page }) => {
+  test("Model What-if", async ({ page }) => {
     await openAtlas(page);
     await selectTract(page, REPRESENTATIVE_TRACTS.sufficient);
-    await page.getByRole("tab", { name: "Workload" }).click();
+    await page.getByRole("tab", { name: "Model" }).click();
     await expect(page.getByText("13 periods")).toBeVisible({ timeout: 20_000 });
-    await page.getByRole("button", { name: "Scenario", exact: true }).click();
+    await page.getByRole("button", { name: "What-if", exact: true }).click();
     await setRange(page.locator("#demand-change"), 20);
     await setRange(page.locator("#closure-shift"), 5);
     await capture(page, "atlas-workload-scenario.png");
   });
 
-  test("Claude confirmation", async ({ page }) => {
+  test("Interpretation confirmation", async ({ page }) => {
     await page.route("**/api/assistant", async (route) => {
       if (route.request().method() === "GET") {
         await route.fulfill({
@@ -137,7 +155,7 @@ test.describe("@visual launch-state regression", () => {
     await openAtlas(page);
     await selectTract(page, REPRESENTATIVE_TRACTS.sufficient);
     await enableNeighborhood(page, "1");
-    await page.getByRole("button", { name: "Claude interpretation" }).click();
+    await page.getByRole("button", { name: "Interpretation with Claude" }).click();
     await page.locator("#assistant-task").selectOption(
       "explain_neighborhood_context",
     );
@@ -147,6 +165,25 @@ test.describe("@visual launch-state regression", () => {
     await page.getByRole("button", { name: "Interpret", exact: true }).click();
     await expect(page.getByText("Proposed control change")).toBeVisible();
     await capture(page, "atlas-claude-confirmation.png");
+  });
+
+  test("Methodology topics", async ({ page }) => {
+    await openAtlas(page);
+    await page.getByRole("button", { name: "Methodology" }).click();
+    await expect(page.getByRole("dialog", { name: "How to read the Atlas" })).toBeVisible();
+    await page.getByRole("button", { name: "Map metrics" }).click();
+    await expect(page.getByRole("heading", { name: "Population and exposure" })).toBeVisible();
+    await capture(page, "atlas-methodology.png");
+  });
+
+  test("context-aware data notes", async ({ page }) => {
+    await openAtlas(page);
+    await selectTract(page, REPRESENTATIVE_TRACTS.ineligible);
+    await page.getByRole("button", { name: "Data notes for this view" }).click();
+    await expect(page.getByRole("dialog", { name: "Data notes" })).toContainText(
+      "Not eligible for prioritization",
+    );
+    await capture(page, "atlas-data-notes.png");
   });
 
   test("mobile Explore", async ({ page }) => {

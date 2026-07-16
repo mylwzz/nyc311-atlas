@@ -1,0 +1,176 @@
+.localBoundary {
+  max-width: 60ch;
+  margin: 10px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+  color: #57534d;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.scopeSection {
+  padding-bottom: 14px;
+}
+
+.scopeSummary {
+  margin: 0;
+  color: #4f4b45;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+.modelTabs {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.periodStrip {
+  grid-template-columns: repeat(13, minmax(82px, 1fr));
+  padding-bottom: 4px;
+}
+
+.periodStrip :global(.period-cell) {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.periodStrip :global(.period-cell strong) {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.labelWithHelp {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.closureRange {
+  grid-template-columns: minmax(0, 1fr) minmax(136px, auto);
+}
+
+.assumptionLabel {
+  color: #825244;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.checkpointHero {
+  padding: 4px 0 2px;
+}
+
+.technicalStack {
+  display: grid;
+  gap: 16px;
+  padding-bottom: 10px;
+}
+
+.methodNote {
+  padding: 10px 12px;
+  border-left: 2px solid var(--line-strong);
+  background: rgb(255 255 255 / 32%);
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.methodNote p {
+  margin: 0;
+}
+
+.methodNote p + p {
+  margin-top: 6px;
+}
+
+.visualGrammar {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.runoffLabel {
+  fill: var(--muted);
+  font-size: 7px;
+  letter-spacing: 0.03em;
+}
+
+.runoffNote {
+  max-width: 62ch;
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.chartEmpty {
+  display: grid;
+  min-height: 116px;
+  padding: 18px;
+  border: 1px dashed var(--line-strong);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+  place-items: center;
+  text-align: center;
+}
+
+.intervalFigure {
+  margin: 0;
+  padding: 10px 0 2px;
+}
+
+.intervalFigure figcaption {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.intervalFigure svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 2px;
+  overflow: visible;
+}
+
+.intervalFigure text {
+  fill: var(--muted);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.intervalAxis {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+
+.intervalBand {
+  fill: rgb(93 116 105 / 23%);
+  stroke: rgb(80 105 93 / 45%);
+  stroke-width: 1;
+}
+
+.intervalMedian {
+  stroke: #32483f;
+  stroke-width: 2;
+}
+
+@media (max-width: 580px) {
+  .scopeSummary {
+    line-height: 1.6;
+  }
+}

@@ -89,6 +89,28 @@ describe("shareable state URL", () => {
     expect(useAtlasStore.getState().scenario.domain).toBe("noise");
   });
 
+  it("keeps Collective Explore-only and preserves a domain for Model", () => {
+    const state = useAtlasStore.getState();
+    state.setDomain("noise");
+    state.setMapMetric("recorded_closure_30d");
+    state.setNeighborhoodMetric("recorded_closure_30d");
+    state.setExploreDomain("collective");
+
+    expect(useAtlasStore.getState()).toMatchObject({
+      activeDomain: "noise",
+      exploreDomain: "collective",
+      activeMapMetric: "complaint_intensity",
+      neighborhood: { metric: "complaint_intensity" },
+    });
+
+    const query = serializeShareableState(useAtlasStore.getState());
+    expect(query).toContain("exploreDomain=collective");
+    expect(parseShareableState(new URLSearchParams(query))).toMatchObject({
+      activeDomain: "noise",
+      exploreDomain: "collective",
+    });
+  });
+
   it("applies workload assumptions only after approval and opens Scenario", () => {
     useAtlasStore.getState().setPendingAssistantAction({
       type: "set_workload_assumptions",

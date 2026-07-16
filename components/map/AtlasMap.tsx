@@ -3,7 +3,7 @@
 import type { PickingInfo } from "@deck.gl/core";
 import type { MapboxOverlay } from "@deck.gl/mapbox";
 import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
-import type { Map as MapLibreMap, StyleSpecification } from "maplibre-gl";
+import type { Map as MapLibreMap } from "maplibre-gl";
 import {
   forwardRef,
   useCallback,
@@ -17,21 +17,20 @@ import {
 } from "react";
 
 import {
-  DOMAIN_LABELS,
-  type DomainKey,
   type TractFeature,
   type TractsGeoJson,
 } from "@/lib/artifacts";
+import {
+  EXPLORE_DOMAIN_CONFIG,
+  type ExploreDomainKey,
+} from "@/lib/domain";
 import {
   createAtlasLayers,
   createMetricColorScale,
   DragSafeClickGuard,
   featureBounds,
-  formatMetricValue,
   formatTractName,
   getActiveDomainSummary,
-  getMapMetricDatum,
-  MAP_METRICS,
   resolveMapDisplayMetric,
   type Coordinate,
   type MapMetricKey,
@@ -43,22 +42,15 @@ import {
   type GeometryWorkerRequest,
   type GeometryWorkerResponse,
 } from "@/lib/map/geometry-worker-contract";
+import {
+  ATLAS_FALLBACK_STYLE,
+  loadAtlasBasemapStyle,
+} from "@/lib/map/basemap";
+import { formatCurrency, formatInteger } from "@/lib/formatting";
 
 import { MapLegend } from "./MapLegend";
 import { TractSearch } from "./TractSearch";
 import styles from "./AtlasMap.module.css";
-
-const EMPTY_STYLE: StyleSpecification = {
-  version: 8,
-  sources: {},
-  layers: [
-    {
-      id: "atlas-background",
-      type: "background",
-      paint: { "background-color": "#d8d5ce" },
-    },
-  ],
-};
 
 const boroughCache = new WeakMap<
   TractsGeoJson,
@@ -79,7 +71,7 @@ export interface AtlasScenarioMapState {
 
 export interface AtlasMapProps {
   tracts: TractsGeoJson;
-  domain: DomainKey;
+  domain: ExploreDomainKey;
   metric: MapMetricKey;
   selectedGeoids: readonly string[];
   activeGeoid: string | null;
@@ -130,19 +122,6 @@ function errorFromUnknown(error: unknown): Error {
   return new Error(typeof error === "string" ? error : "The map could not render.");
 }
 
-function sampleNote(status: string | null): string | null {
-  switch (status) {
-    case "no_requests":
-      return "No mapped requests in this domain.";
-    case "no_known_timing":
-      return "Requests are present, but closure timing is unavailable.";
-    case "insufficient_sample":
-      return "Insufficient tract-specific response sample.";
-    default:
-      return null;
-  }
-}
-
 export const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
   function AtlasMap(
     {
@@ -179,6 +158,9 @@ export const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
     const onMapErrorRef = useRef(onMapError);
     const initialViewRef = useRef(initialView);
     const [hover, setHover] = useState<HoverState | null>(null);
+    const [basemapLabelLayer, setBasemapLabelLayer] = useState<string | null>(
+      null,
+    );
     const [boroughBoundaries, setBoroughBoundaries] = useState<
       FeatureCollection<Polygon | MultiPolygon, { borough: string }> | null
     >(() => boroughCache.get(tracts) ?? null);
@@ -369,6 +351,7 @@ export const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
             : null,
           scenario: scenario as ScenarioLayerState | null,
           boroughBoundaries,
+          beforeBasemapLabels: basemapLabelLayer,
         }),
       [
         tracts,
@@ -381,6 +364,7 @@ export const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
         neighborhoodPerimeter,
         scenario,
         boroughBoundaries,
+        basemapLabelLayer,
       ],
     );
     layersRef.current = layers;
@@ -411,7 +395,10 @@ export const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
 
     useEffect(() => {
       let disposed = false;
+      let initialMapReady = false;
       let mapCanvas: HTMLCanvasElement | null = null;
+      let resizeObserver: ResizeObserver | null = null;
+      const basemapController = new AbortController();
       const container = containerRef.current;
       if (!container) return;
 
@@ -429,7 +416,7 @@ export const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
           const view = initialViewRef.current;
           const map = new maplibre.Map({
             container: containerRef.current,
-            style: EMPTY_STYLE,
+            style: ATLAS_FALLBACK_STYLE,
             center: view?.center ?? [-73.97, 40.705],
             zoom: view?.zoom ?? 9.45,
             minZoom: 8.4,
@@ -438,12 +425,12 @@ export const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
               [-74.5, 40.35],
               [-73.45, 41.1],
             ],
-            attributionControl: false,
+            attributionControl: { compact: true },
             renderWorldCopies: false,
             keyboard: true,
           });
           const overlay = new deckMapbox.MapboxOverlay({
-            interleaved: false,
+            interleaved: true,
             layers: layersRef.current,
             onClick: handleDeckClick,
             onHover: handleDeckHover,
@@ -451,6 +438,8 @@ export const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
           map.addControl(overlay);
           mapRef.current = map;
           overlayRef.current = overlay;
+          resizeObserver = new ResizeObserver(() => map.resize());
+          resizeObserver.observe(container);
 
           const pointerDown = () => clickGuardRef.current.pointerDown();
           const markDragged = () => clickGuardRef.current.markDragged();
@@ -460,11 +449,16 @@ export const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
           map.on("rotatestart", markDragged);
           map.on("pitchstart", markDragged);
           map.on("error", (event) => {
-            onMapErrorRef.current?.(
-              errorFromUnknown((event as { error?: unknown }).error),
-            );
+            // Tile/glyph failures from a remote contextual basemap are
+            // non-fatal because the analytical deck.gl layer remains usable.
+            if (!initialMapReady) {
+              onMapErrorRef.current?.(
+                errorFromUnknown((event as { error?: unknown }).error),
+              );
+            }
           });
           map.once("load", () => {
+            initialMapReady = true;
             const canvas = map.getCanvas();
             mapCanvas = canvas;
             canvas.tabIndex = 0;
@@ -474,6 +468,24 @@ export const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
             );
             canvas.addEventListener("focus", showKeyboardTooltip);
             onMapReadyRef.current?.(map);
+            void loadAtlasBasemapStyle(basemapController.signal)
+              .then((style) => {
+                if (disposed) return;
+                map.once("style.load", () => {
+                  if (disposed) return;
+                  const firstLabel = map
+                    .getStyle()
+                    .layers?.find((layer) => layer.type === "symbol")?.id;
+                  setBasemapLabelLayer(firstLabel ?? null);
+                  container.dataset.basemap = "positron";
+                });
+                map.setStyle(style, { diff: false });
+              })
+              .catch(() => {
+                // Keep the immediate neutral fallback. This is a contextual
+                // enhancement and must never block the validated tract map.
+                if (!disposed) container.dataset.basemap = "fallback";
+              });
           });
         })
         .catch((error: unknown) => {
@@ -482,6 +494,8 @@ export const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
 
       return () => {
         disposed = true;
+        basemapController.abort();
+        resizeObserver?.disconnect();
         mapCanvas?.removeEventListener("focus", showKeyboardTooltip);
         const map = mapRef.current;
         const overlay = overlayRef.current;
@@ -536,15 +550,8 @@ export const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
     };
 
     const displayMetric = resolveMapDisplayMetric(metric, neighborhood?.metric);
-    const hoveredMetric = hover
-      ? getMapMetricDatum(hover.feature.properties, domain, displayMetric)
-      : null;
     const hoveredDomain = hover
       ? getActiveDomainSummary(hover.feature.properties, domain)
-      : null;
-    const hoveredSampleNote = hoveredDomain &&
-      MAP_METRICS[displayMetric].requiresSufficientResponse
-      ? sampleNote(hoveredDomain.sampleStatus)
       : null;
     const tooltipPosition = hover
       ? {
@@ -559,7 +566,7 @@ export const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
             8,
             Math.min(
               hover.y + 12,
-              (containerRef.current?.clientHeight ?? hover.y + 190) - 180,
+              (containerRef.current?.clientHeight ?? hover.y + 230) - 220,
             ),
           ),
         }
@@ -595,6 +602,7 @@ export const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
             scale={metricScale}
             neighborhoodActive={Boolean(neighborhood)}
             scenarioActive={Boolean(scenario?.currentGeoids.size)}
+            denominatorMetricActive={displayMetric === "complaint_intensity"}
             pinnedScenarioActive={Boolean(scenario?.pinnedGeoids?.size)}
           />
         )}
@@ -646,47 +654,43 @@ export const AtlasMap = forwardRef<AtlasMapHandle, AtlasMapProps>(
             NYC
           </button>
         </div>
-        {hover && hoveredDomain && hoveredMetric && (
+        {hover && hoveredDomain && (
           <div
             className={styles.tooltip}
             role="status"
-            tabIndex={0}
             aria-label={`Map details for ${formatTractName(hover.feature.properties)}`}
             style={tooltipPosition}
           >
             <strong>{formatTractName(hover.feature.properties)}</strong>
             <span className={styles.tooltipMeta}>
-              GEOID {hover.feature.properties.geoid}
+              <span>GEOID {hover.feature.properties.geoid}</span>
+              <span>
+                Population {hover.feature.properties.population === null
+                  ? "N/A"
+                  : formatInteger(hover.feature.properties.population)}
+              </span>
+              <span>
+                Median income {hover.feature.properties.medianHouseholdIncome === null
+                  ? "N/A"
+                  : formatCurrency(hover.feature.properties.medianHouseholdIncome)}
+              </span>
             </span>
             <dl>
               <div>
-                <dt>{DOMAIN_LABELS[domain]} mapped complaints</dt>
-                <dd>{hoveredDomain.count.toLocaleString("en-US")}</dd>
+                <dt>Mapped complaints · {EXPLORE_DOMAIN_CONFIG[domain].label}</dt>
+                <dd className={styles.tooltipPrimaryValue}>
+                  {hoveredDomain.count.toLocaleString("en-US")}
+                </dd>
               </div>
               <div>
-                <dt>Complaints per 1,000</dt>
+                <dt>Complaints per 1,000 residents</dt>
                 <dd>
                   {hoveredDomain.ratePer1000 === null
                     ? "Not available"
                     : hoveredDomain.ratePer1000.toFixed(1)}
                 </dd>
               </div>
-              {displayMetric !== "mapped_complaint_count" &&
-                displayMetric !== "complaint_intensity" && (
-                  <div>
-                    <dt>{MAP_METRICS[displayMetric].shortLabel}</dt>
-                    <dd>
-                      {formatMetricValue(hoveredMetric)}
-                      {hoveredMetric.secondaryValue === null
-                        ? ""
-                        : ` · ${hoveredMetric.secondaryValue.toFixed(1)} per 1,000`}
-                    </dd>
-                  </div>
-                )}
             </dl>
-            {hoveredSampleNote && (
-              <span className={styles.sampleNote}>{hoveredSampleNote}</span>
-            )}
           </div>
         )}
         <p className={styles.live} aria-live="polite">

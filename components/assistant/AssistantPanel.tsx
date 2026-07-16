@@ -41,6 +41,8 @@ export interface AssistantPanelProps {
   };
   /** Local validation only. This full set is never included in the API request. */
   knownGeoids: ReadonlySet<string>;
+  /** Honest UI boundary when the visible analytical mode is outside Claude's schema. */
+  disabledReason?: string | null;
 }
 
 const unavailableCopy =
@@ -71,7 +73,7 @@ const TASK_OPTIONS: readonly {
   },
   {
     value: "explain_scenario_membership",
-    label: "Explain selection scenario",
+    label: "Explain priority selection",
     available: (context) => context.currentScenario !== null,
   },
   {
@@ -81,7 +83,7 @@ const TASK_OPTIONS: readonly {
   },
   {
     value: "interpret_workload_assumptions",
-    label: "Interpret workload assumptions",
+    label: "Interpret modeling assumptions",
     available: (context) => context.workload !== null,
   },
   {
@@ -101,10 +103,58 @@ const TASK_OPTIONS: readonly {
   },
 ];
 
+const SUGGESTED_QUESTIONS: Record<
+  AssistantPanelProps["context"]["workspace"],
+  readonly { task: AssistantTask; prompt: string }[]
+> = {
+  explore: [
+    {
+      task: "explain_active_tract",
+      prompt: "What stands out about this tract?",
+    },
+    {
+      task: "compare_selected_tracts",
+      prompt: "Compare the selected tracts.",
+    },
+    {
+      task: "explain_neighborhood_context",
+      prompt: "How does this tract differ from nearby tracts?",
+    },
+  ],
+  scenario: [
+    {
+      task: "explain_scenario_membership",
+      prompt: "Why did this tract surface?",
+    },
+    {
+      task: "explain_scenario_membership",
+      prompt: "Compare the two scoring approaches.",
+    },
+    {
+      task: "explain_scenario_membership",
+      prompt: "What changed when I moved the priority balance?",
+    },
+  ],
+  workload: [
+    {
+      task: "explain_workload_replay",
+      prompt: "Explain this replay.",
+    },
+    {
+      task: "interpret_workload_assumptions",
+      prompt: "Which assumption drives the difference?",
+    },
+    {
+      task: "interpret_workload_assumptions",
+      prompt: "What would need to be true for this scenario to be plausible?",
+    },
+  ],
+};
+
 function describeAction(action: AssistantAction): string {
   switch (action.type) {
     case "set_workspace":
-      return `Open the ${action.workspace === "scenario" ? "Scenario Lab" : action.workspace === "workload" ? "Workload" : "Explore"} workspace.`;
+      return `Open ${action.workspace === "scenario" ? "Prioritize" : action.workspace === "workload" ? "Model" : "Explore"}.`;
     case "set_domain":
       return `Set the service domain to ${DOMAIN_CONFIG[action.domain].label}.`;
     case "set_map_metric":
@@ -116,13 +166,17 @@ function describeAction(action: AssistantAction): string {
     case "set_neighborhood":
       return `${action.enabled ? "Show" : "Hide"} Queen-contiguity neighborhood context${action.radius ? ` at radius ${action.radius}` : ""}.`;
     case "set_scenario":
-      return `Open the ${action.scalingMode === "rank_balanced" ? "Rank-balanced" : "Magnitude-sensitive"} selection scenario for ${DOMAIN_CONFIG[action.domain].label}, K ${action.k}, alpha ${action.alpha.toFixed(1)}.`;
+      return `Use the ${action.scalingMode === "rank_balanced" ? "Rank-balanced" : "Magnitude-sensitive"} priority definition for ${DOMAIN_CONFIG[action.domain].label}, surface ${action.k} tracts, and give ${Math.round(action.alpha * 100)}% weight to complaint intensity.`;
     case "set_workload_assumptions":
-      return `Set demand change to ${action.demandChangePct}% and the recorded closure-curve shift to ${action.closureCurveShiftPoints} percentage points.`;
+      return `Open Model What-if with request arrivals changed by ${action.demandChangePct}% and recorded closure pace shifted by ${action.closureCurveShiftPoints} percentage points.`;
   }
 }
 
-export function AssistantPanel({ context, knownGeoids }: AssistantPanelProps) {
+export function AssistantPanel({
+  context,
+  knownGeoids,
+  disabledReason = null,
+}: AssistantPanelProps) {
   const open = useAtlasStore((state) => state.assistant.open);
   const pendingAction = useAtlasStore((state) => state.assistant.pendingAction);
   const setOpen = useAtlasStore((state) => state.setAssistantOpen);
@@ -165,10 +219,16 @@ export function AssistantPanel({ context, knownGeoids }: AssistantPanelProps) {
   const effectiveTask = selectedTask?.available(context)
     ? task
     : "explain_methodology_limitations";
+  const suggestedQuestions = SUGGESTED_QUESTIONS[context.workspace].filter(
+    (question) =>
+      TASK_OPTIONS.find((option) => option.value === question.task)?.available(
+        context,
+      ) ?? false,
+  );
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!prompt.trim() || loading || available !== true) return;
+    if (!prompt.trim() || loading || available !== true || disabledReason) return;
 
     const parsedContext = AssistantContextSchema.safeParse(context);
     if (!parsedContext.success) {
@@ -220,14 +280,17 @@ export function AssistantPanel({ context, knownGeoids }: AssistantPanelProps) {
   }
 
   return (
-    <section className="assistant-panel" aria-label="Claude interpretation">
+    <section className="assistant-panel" aria-label="Interpretation with Claude">
       <button
         className="assistant-toggle"
         type="button"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        <span>Claude interpretation</span>
+        <span className="assistant-title">
+          <strong>Interpretation</strong>
+          <small>with Claude</small>
+        </span>
         <span aria-hidden="true">{open ? "−" : "+"}</span>
       </button>
       {open ? (
@@ -249,54 +312,80 @@ export function AssistantPanel({ context, knownGeoids }: AssistantPanelProps) {
             </div>
           ) : available === false ? (
             <div className="status-box">{unavailableCopy}</div>
+          ) : disabledReason ? (
+            <div className="status-box" role="status">
+              {disabledReason}
+            </div>
           ) : (
-            <form onSubmit={submit} className="field-stack">
-              <label className="field-label" htmlFor="assistant-task">
-                Interpretation task
-              </label>
-              <select
-                id="assistant-task"
-                className="select"
-                value={effectiveTask}
-                onChange={(event) => {
-                  setTask(event.target.value as AssistantTask);
-                  setPendingAction(null);
-                }}
-              >
-                {TASK_OPTIONS.map((option) => (
-                  <option
-                    key={option.value}
-                    value={option.value}
-                    disabled={!option.available(context)}
-                  >
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <label className="field-label" htmlFor="assistant-prompt">
-                Request
-              </label>
-              <textarea
-                id="assistant-prompt"
-                className="textarea"
-                maxLength={2_000}
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                placeholder="Explain what stands out in the supplied results and what evidence to investigate next."
-              />
-              <div className="control-row">
-                <span className="helper-text">
-                  Claude explains supplied results; it does not calculate them.
-                </span>
-                <button
-                  className="button primary"
-                  type="submit"
-                  disabled={loading || !prompt.trim()}
+            <>
+              {suggestedQuestions.length ? (
+                <div className="assistant-suggestions" aria-label="Suggested questions">
+                  <span className="field-label">Suggested questions</span>
+                  <div>
+                    {suggestedQuestions.map((question) => (
+                      <button
+                        key={question.prompt}
+                        type="button"
+                        onClick={() => {
+                          setTask(question.task);
+                          setPrompt(question.prompt);
+                          setPendingAction(null);
+                        }}
+                      >
+                        {question.prompt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              <form onSubmit={submit} className="field-stack">
+                <label className="field-label" htmlFor="assistant-task">
+                  Interpretation task
+                </label>
+                <select
+                  id="assistant-task"
+                  className="select"
+                  value={effectiveTask}
+                  onChange={(event) => {
+                    setTask(event.target.value as AssistantTask);
+                    setPendingAction(null);
+                  }}
                 >
-                  {loading ? "Interpreting…" : "Interpret"}
-                </button>
-              </div>
-            </form>
+                  {TASK_OPTIONS.map((option) => (
+                    <option
+                      key={option.value}
+                      value={option.value}
+                      disabled={!option.available(context)}
+                    >
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <label className="field-label" htmlFor="assistant-prompt">
+                  Request
+                </label>
+                <textarea
+                  id="assistant-prompt"
+                  className="textarea"
+                  maxLength={2_000}
+                  value={prompt}
+                  onChange={(event) => setPrompt(event.target.value)}
+                  placeholder="Ask for an explanation of the supplied results."
+                />
+                <div className="control-row">
+                  <span className="helper-text">
+                    Claude explains supplied results; it does not calculate them.
+                  </span>
+                  <button
+                    className="button primary"
+                    type="submit"
+                    disabled={loading || !prompt.trim()}
+                  >
+                    {loading ? "Interpreting…" : "Interpret"}
+                  </button>
+                </div>
+              </form>
+            </>
           )}
           {error ? <div className="error-state" role="alert">{error}</div> : null}
           {narrative ? (

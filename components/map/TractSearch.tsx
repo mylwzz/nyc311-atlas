@@ -24,7 +24,7 @@ export interface TractSearchProps {
 export function TractSearch({
   features,
   onSelect,
-  placeholder = "Find a tract or GEOID",
+  placeholder = "Search tract, GEOID, or borough",
   className,
 }: TractSearchProps) {
   const id = useId();
@@ -74,7 +74,7 @@ export function TractSearch({
       onBlur={onBlur}
     >
       <label className={styles.label} htmlFor={`${id}-input`}>
-        Find a census tract
+        Search by tract number, GEOID, or borough
       </label>
       <div className={styles.inputWrap}>
         <svg

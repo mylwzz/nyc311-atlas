@@ -1,10 +1,11 @@
 import {
+  DOMAIN_KEYS,
   DOMAIN_PROPERTY_PREFIXES,
-  type DomainKey,
   type WorkloadSampleStatus,
   type TractFeature,
   type TractFeatureProperties,
 } from "@/lib/artifacts";
+import type { ExploreDomainKey } from "@/lib/domain";
 
 export const MAP_METRIC_KEYS = [
   "complaint_intensity",
@@ -23,6 +24,33 @@ export const MAP_METRIC_KEYS = [
 ] as const;
 
 export type MapMetricKey = (typeof MAP_METRIC_KEYS)[number];
+
+export const COLLECTIVE_MAP_METRIC_KEYS = [
+  "complaint_intensity",
+  "mapped_complaint_count",
+  "median_household_income",
+  "allocation_eligibility",
+] as const satisfies readonly MapMetricKey[];
+
+export function isMapMetricCompatibleWithExploreDomain(
+  domain: ExploreDomainKey,
+  metric: MapMetricKey,
+): boolean {
+  return (
+    domain !== "collective" ||
+    COLLECTIVE_MAP_METRIC_KEYS.includes(
+      metric as (typeof COLLECTIVE_MAP_METRIC_KEYS)[number],
+    )
+  );
+}
+
+export function mapMetricsForExploreDomain(
+  domain: ExploreDomainKey,
+): readonly MapMetricKey[] {
+  return domain === "collective"
+    ? COLLECTIVE_MAP_METRIC_KEYS
+    : MAP_METRIC_KEYS;
+}
 
 export const NEIGHBORHOOD_METRIC_KEYS = [
   "complaint_intensity",
@@ -108,81 +136,81 @@ export const MAP_METRICS: Record<MapMetricKey, MetricDefinition> = {
   },
   recorded_closure_30d: {
     key: "recorded_closure_30d",
-    label: "Recorded closure within 30 days",
-    shortLabel: "Recorded closure · 30d",
-    legendLabel: "Recorded closed within 30 days",
+    label: "Closed within 30 days",
+    shortLabel: "Closed · 30 days",
+    legendLabel: "Closed within 30 days",
     format: "percent",
     scale: "quantile",
     requiresSufficientResponse: true,
   },
   recorded_closure_180d: {
     key: "recorded_closure_180d",
-    label: "Recorded closure within 180 days",
-    shortLabel: "Recorded closure · 180d",
-    legendLabel: "Recorded closed within 180 days",
+    label: "Closed within ~6 months",
+    shortLabel: "Closed · ~6 months",
+    legendLabel: "Closed within ~6 months",
     format: "percent",
     scale: "quantile",
     requiresSufficientResponse: true,
   },
   median_recorded_days_to_closure: {
     key: "median_recorded_days_to_closure",
-    label: "Median recorded days to closure",
-    shortLabel: "Median recorded closure days",
-    legendLabel: "Median recorded days to closure",
+    label: "Median time to close",
+    shortLabel: "Median time to close",
+    legendLabel: "Median time to close",
     format: "days",
     scale: "quantile",
     requiresSufficientResponse: true,
   },
   not_recorded_closed_age_30d: {
     key: "not_recorded_closed_age_30d",
-    label: "Not recorded closed by age 30 days",
-    shortLabel: "Not recorded closed · age 30",
-    legendLabel: "Not recorded closed by age 30 (count)",
+    label: "Still open after 30 days",
+    shortLabel: "Still open after 30 days",
+    legendLabel: "Still open after 30 days (count)",
     format: "count",
     scale: "quantile",
     requiresSufficientResponse: true,
   },
   not_recorded_closed_age_180d: {
     key: "not_recorded_closed_age_180d",
-    label: "Not recorded closed by age 180 days",
-    shortLabel: "Not recorded closed · age 180",
-    legendLabel: "Not recorded closed by age 180 (count)",
+    label: "Still open after ~6 months",
+    shortLabel: "Still open after ~6 months",
+    legendLabel: "Still open after ~6 months (count)",
     format: "count",
     scale: "quantile",
     requiresSufficientResponse: true,
   },
   mean_complete_period_arrivals: {
     key: "mean_complete_period_arrivals",
-    label: "Mean complete-period arrivals",
-    shortLabel: "Mean 30-day arrivals",
-    legendLabel: "Mean requests per complete 30-day period",
+    label: "Average new requests per full month",
+    shortLabel: "Average new requests / full month",
+    legendLabel: "Average new requests per full month",
     format: "count",
     scale: "quantile",
     requiresSufficientResponse: false,
   },
   median_complete_period_arrivals: {
     key: "median_complete_period_arrivals",
-    label: "Median complete-period arrivals",
-    shortLabel: "Median 30-day arrivals",
-    legendLabel: "Median requests per complete 30-day period",
+    label: "Typical new requests per full month",
+    shortLabel: "Typical new requests / full month",
+    legendLabel: "Typical new requests per full month",
     format: "count",
     scale: "quantile",
     requiresSufficientResponse: false,
   },
   expected_cohort_open_age_30d: {
     key: "expected_cohort_open_age_30d",
-    label: "Expected cohort open at age 30 days",
-    shortLabel: "Expected open · age 30",
-    legendLabel: "Expected cohort open at age 30",
+    label: "Modeled still open after 30 days",
+    shortLabel: "Modeled still open · 30 days",
+    legendLabel: "Modeled still open after 30 days",
     format: "count",
     scale: "quantile",
     requiresSufficientResponse: true,
   },
   expected_cohort_open_age_180d: {
     key: "expected_cohort_open_age_180d",
-    label: "Expected cohort open at age 180 days",
-    shortLabel: "Expected open · age 180",
-    legendLabel: "Expected cohort open at age 180",
+    label: "Modeled still open after ~6 months",
+    shortLabel: "Modeled still open · ~6 months",
+    legendLabel: "Modeled still open after ~6 months",
     format: "count",
     scale: "quantile",
     requiresSufficientResponse: true,
@@ -222,6 +250,47 @@ function sparseReason(status: WorkloadSampleStatus | null): string {
   }
 }
 
+function collectiveComplaintCount(
+  properties: TractFeatureProperties,
+): number {
+  return DOMAIN_KEYS.reduce((total, domain) => {
+    const prefix = DOMAIN_PROPERTY_PREFIXES[domain];
+    const count = asNumber(getProperty(properties, `${prefix}ComplaintCount`));
+    if (count === null) {
+      throw new TypeError(
+        `Artifact field ${prefix}ComplaintCount is not a finite number.`,
+      );
+    }
+    return total + count;
+  }, 0);
+}
+
+export interface CollectiveComplaintSummary {
+  count: number;
+  ratePer1000: number | null;
+  sampleStatus: null;
+}
+
+/**
+ * Computes the Explore-only Collective numerator by summing the five artifact
+ * counts. The denominator is the tract population; domain rates are never
+ * averaged or summed.
+ */
+export function getCollectiveComplaintSummary(
+  properties: TractFeatureProperties,
+): CollectiveComplaintSummary {
+  const count = collectiveComplaintCount(properties);
+  const population = asNumber(getProperty(properties, "population"));
+  return {
+    count,
+    ratePer1000:
+      population !== null && population > 0
+        ? (count / population) * 1_000
+        : null,
+    sampleStatus: null,
+  };
+}
+
 /**
  * Reads only exported artifact properties. Closure-derived map metrics are
  * explicitly gated by sample status even when a raw numerator is present.
@@ -230,9 +299,57 @@ function sparseReason(status: WorkloadSampleStatus | null): string {
  */
 export function getMapMetricDatum(
   properties: TractFeatureProperties,
-  domain: DomainKey,
+  domain: ExploreDomainKey,
   metric: MapMetricKey,
 ): MapMetricDatum {
+  if (domain === "collective") {
+    if (!isMapMetricCompatibleWithExploreDomain(domain, metric)) {
+      return {
+        metric,
+        value: null,
+        scaleValue: null,
+        secondaryValue: null,
+        sampleStatus: null,
+        available: false,
+        unavailableReason:
+          "Choose a service domain for response and workload metrics",
+      };
+    }
+
+    const summary = getCollectiveComplaintSummary(properties);
+    let value: number | boolean | null;
+    switch (metric) {
+      case "complaint_intensity":
+        value = summary.ratePer1000;
+        break;
+      case "mapped_complaint_count":
+        value = summary.count;
+        break;
+      case "median_household_income":
+        value = asNumber(getProperty(properties, "medianHouseholdIncome"));
+        break;
+      case "allocation_eligibility": {
+        const eligible = getProperty(properties, "allocationEligible");
+        value = typeof eligible === "boolean" ? eligible : null;
+        break;
+      }
+      default:
+        value = null;
+    }
+    const scaleValue =
+      typeof value === "boolean" ? (value ? 1 : 0) : value;
+    const available = value !== null && scaleValue !== null;
+    return {
+      metric,
+      value: available ? value : null,
+      scaleValue: available ? scaleValue : null,
+      secondaryValue: null,
+      sampleStatus: null,
+      available,
+      unavailableReason: available ? null : "Not available",
+    };
+  }
+
   const prefix = DOMAIN_PROPERTY_PREFIXES[domain];
   const status = asStatus(
     getProperty(properties, `${prefix}ResponseSampleStatus`),
@@ -330,10 +447,9 @@ export function getMapMetricDatum(
       break;
   }
 
-  // Complaint intensity can have a valid displayed rate but no exported
-  // percentile for an ineligible tract. It remains unavailable for fill, as
-  // the build contract requires the exported percentile rather than a locally
-  // invented rank.
+  // A five-domain complaint intensity can have a valid displayed rate but no
+  // exported percentile for an ineligible tract. It remains unavailable for
+  // fill, as the artifact contract requires that exported percentile.
   const available = value !== null && scaleValue !== null;
   const unavailableReason = definition.requiresSufficientResponse
     ? sparseReason(status)
@@ -352,7 +468,7 @@ export function getMapMetricDatum(
 
 export function getMetricValues(
   features: readonly TractFeature[],
-  domain: DomainKey,
+  domain: ExploreDomainKey,
   metric: MapMetricKey,
 ): number[] {
   return features.flatMap((feature) => {
@@ -363,12 +479,15 @@ export function getMetricValues(
 
 export function getActiveDomainSummary(
   properties: TractFeatureProperties,
-  domain: DomainKey,
+  domain: ExploreDomainKey,
 ): {
   count: number;
   ratePer1000: number | null;
   sampleStatus: WorkloadSampleStatus | null;
 } {
+  if (domain === "collective") {
+    return getCollectiveComplaintSummary(properties);
+  }
   const prefix = DOMAIN_PROPERTY_PREFIXES[domain];
   return {
     count:

@@ -14,7 +14,9 @@ export async function openAtlas(page: Page, path = "/"): Promise<void> {
     timeout: 20_000,
   });
   await expect(page.getByRole("main")).toBeVisible();
-  await expect(page.getByLabel("Analysis panel")).toBeVisible();
+  await expect(
+    page.getByRole("complementary", { name: "Analysis panel", exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByLabel(/Interactive New York City census tract map/),
   ).toBeVisible({
@@ -22,8 +24,8 @@ export async function openAtlas(page: Page, path = "/"): Promise<void> {
   });
   await expect.poll(
     () => page.locator(".map-stage canvas").count(),
-    { message: "MapLibre and deck.gl canvases should both be mounted." },
-  ).toBeGreaterThanOrEqual(2);
+    { message: "The interleaved MapLibre/deck.gl canvas should be mounted." },
+  ).toBeGreaterThanOrEqual(1);
   const controls = page.getByLabel("Map controls");
   await expect(controls).toBeVisible();
   await expect.poll(async () => (await controls.boundingBox())?.width ?? 0, {
@@ -32,6 +34,10 @@ export async function openAtlas(page: Page, path = "/"): Promise<void> {
   await expect.poll(async () => (await controls.boundingBox())?.height ?? 0, {
     message: "Map controls must not cover the map canvas.",
   }).toBeLessThanOrEqual(280);
+  await expect.poll(
+    () => page.locator(".maplibregl-map").getAttribute("data-basemap"),
+    { message: "The local basemap style should settle without blocking the tract layer." },
+  ).toMatch(/positron|fallback/);
   await page.waitForTimeout(750);
 }
 
@@ -39,7 +45,14 @@ export async function selectTract(
   page: Page,
   feature: RepresentativeFeature,
 ): Promise<void> {
-  await page.locator("#tract-search").selectOption(feature.properties.geoid);
+  const search = page.getByRole("combobox", {
+    name: "Search by tract number, GEOID, or borough",
+  });
+  await search.fill(feature.properties.geoid);
+  await page
+    .getByRole("option")
+    .filter({ hasText: feature.properties.geoid })
+    .click();
   const selected = page.getByLabel("Selected census tracts");
   await expect(selected).toContainText(`Tract ${feature.properties.tractName}`);
 }
@@ -47,7 +60,7 @@ export async function selectTract(
 export async function clearSelection(page: Page): Promise<void> {
   await page.keyboard.press("Escape");
   await expect(page.getByLabel("Selected census tracts")).toHaveCount(0);
-  await expect(page.getByText("Begin with the map")).toBeVisible();
+  await expect(page.getByText("Choose a tract to begin")).toBeVisible();
 }
 
 export async function setRange(locator: Locator, value: number): Promise<void> {
@@ -90,15 +103,37 @@ export async function hoverActualTract(
   feature: TractFixture,
 ): Promise<{ x: number; y: number }> {
   const point = await defaultMapPoint(page, feature);
-  await page.mouse.move(point.x, point.y);
-  await expect(
-    page.getByLabel(`Map details for ${tractName(feature)}`),
-  ).toBeVisible();
+  const expectedLabel = `Map details for ${tractName(feature)}`;
+  const tooltip = page.locator('.map-stage [aria-label^="Map details for "]');
+  // The public vector style can settle at a sub-pixel transform that differs
+  // slightly from the deterministic Mercator estimate. Probe a tight area
+  // around the known interior coordinate while still exercising deck.gl pick.
+  const offsets = [0, 4, -4, 8, -8, 12, -12, 16, -16];
+  for (const yOffset of offsets) {
+    for (const xOffset of offsets) {
+      const candidate = { x: point.x + xOffset, y: point.y + yOffset };
+      await page.mouse.move(candidate.x, candidate.y);
+      await page.waitForTimeout(35);
+      if ((await tooltip.getAttribute("aria-label")) === expectedLabel) {
+        // Confirm the label after React's hover update has settled so a
+        // delayed result from the prior probe cannot return an adjacent point.
+        await page.waitForTimeout(65);
+        if ((await tooltip.getAttribute("aria-label")) === expectedLabel) {
+          return candidate;
+        }
+      }
+    }
+  }
+  await expect(page.getByLabel(expectedLabel)).toBeVisible();
   return point;
 }
 
 export async function settleVisual(page: Page): Promise<void> {
   await page.emulateMedia({ reducedMotion: "reduce", colorScheme: "light" });
+  await expect.poll(
+    () => page.locator(".maplibregl-map").getAttribute("data-basemap"),
+    { message: "The pinned contextual basemap style should settle before capture." },
+  ).toMatch(/positron|fallback/);
   await page.evaluate(async () => {
     await document.fonts.ready;
     await new Promise<void>((resolve) => {

@@ -5,6 +5,7 @@ import {
   type MapColor,
   type MetricColorScale,
 } from "@/lib/map";
+import { PopulationDenominatorInfo } from "@/components/ui/PopulationDenominatorInfo";
 
 import styles from "./MapLegend.module.css";
 
@@ -16,6 +17,7 @@ export interface MapLegendProps {
   neighborhoodActive?: boolean;
   scenarioActive?: boolean;
   pinnedScenarioActive?: boolean;
+  denominatorMetricActive?: boolean;
   className?: string;
 }
 
@@ -37,6 +39,7 @@ export function MapLegend({
   neighborhoodActive = false,
   scenarioActive = false,
   pinnedScenarioActive = false,
+  denominatorMetricActive = false,
   className,
 }: MapLegendProps) {
   const items = neighborhoodActive ? NEIGHBORHOOD_LEGEND : scale.legendItems;
@@ -47,6 +50,9 @@ export function MapLegend({
     >
       <h2 className={styles.title}>
         {neighborhoodActive ? "Relative to active tract" : scale.label}
+        {denominatorMetricActive ? (
+          <PopulationDenominatorInfo passive />
+        ) : null}
       </h2>
       <ul className={styles.items}>
         {items.map((item) => (
@@ -63,8 +69,8 @@ export function MapLegend({
                 style={{ backgroundColor: cssColor(MAP_COLORS.scenarioCurrent) }}
               />
               {pinnedScenarioActive
-                ? "Current only · entered"
-                : "Current selection scenario"}
+                ? "Current only · newly surfaced"
+                : "Current priority definition"}
             </div>
           )}
           {pinnedScenarioActive && (
@@ -74,7 +80,7 @@ export function MapLegend({
                 className={`${styles.swatch} ${styles.outline}`}
                 style={{ backgroundColor: cssColor(MAP_COLORS.scenarioPinned) }}
               />
-              Pinned only · exited
+              Saved only · no longer surfaced
             </div>
           )}
           {scenarioActive && pinnedScenarioActive && (
@@ -84,7 +90,7 @@ export function MapLegend({
                 className={`${styles.swatch} ${styles.outline}`}
                 style={{ backgroundColor: cssColor(MAP_COLORS.scenarioShared) }}
               />
-              Shared by both scenarios
+              Shared by both definitions
             </div>
           )}
           {neighborhoodActive && (

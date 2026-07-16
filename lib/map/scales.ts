@@ -1,4 +1,5 @@
-import type { DomainKey, TractFeature } from "@/lib/artifacts";
+import type { TractFeature } from "@/lib/artifacts";
+import type { ExploreDomainKey } from "@/lib/domain";
 
 import {
   getMapMetricDatum,
@@ -14,8 +15,8 @@ export const MAP_COLORS = {
   selected: [43, 43, 40, 255] as MapColor,
   tractLine: [95, 90, 84, 90] as MapColor,
   boroughLine: [55, 53, 49, 190] as MapColor,
-  unavailable: [210, 207, 200, 225] as MapColor,
-  ghost: [173, 171, 166, 170] as MapColor,
+  unavailable: [210, 207, 200, 205] as MapColor,
+  ghost: [173, 171, 166, 158] as MapColor,
   scenarioCurrent: [50, 91, 102, 104] as MapColor,
   scenarioPinned: [140, 107, 70, 92] as MapColor,
   scenarioShared: [56, 93, 86, 118] as MapColor,
@@ -24,35 +25,35 @@ export const MAP_COLORS = {
 } as const;
 
 const DEMAND_PALETTE: readonly MapColor[] = [
-  [241, 236, 227, 245],
-  [224, 210, 190, 245],
-  [199, 174, 143, 245],
-  [159, 120, 88, 245],
-  [102, 72, 54, 245],
+  [241, 236, 227, 205],
+  [224, 210, 190, 205],
+  [199, 174, 143, 205],
+  [159, 120, 88, 205],
+  [102, 72, 54, 205],
 ];
 
 const RESPONSE_PALETTE: readonly MapColor[] = [
-  [236, 234, 226, 245],
-  [204, 216, 207, 245],
-  [160, 190, 177, 245],
-  [105, 154, 141, 245],
-  [55, 108, 104, 245],
+  [236, 234, 226, 205],
+  [204, 216, 207, 205],
+  [160, 190, 177, 205],
+  [105, 154, 141, 205],
+  [55, 108, 104, 205],
 ];
 
 const INCOME_PALETTE: readonly MapColor[] = [
-  [239, 235, 222, 245],
-  [216, 214, 193, 245],
-  [181, 190, 169, 245],
-  [132, 158, 144, 245],
-  [79, 117, 111, 245],
+  [239, 235, 222, 205],
+  [216, 214, 193, 205],
+  [181, 190, 169, 205],
+  [132, 158, 144, 205],
+  [79, 117, 111, 205],
 ];
 
 export const NEIGHBORHOOD_PALETTE: readonly MapColor[] = [
-  [76, 112, 126, 245],
-  [151, 176, 179, 245],
-  [225, 222, 211, 245],
-  [204, 159, 125, 245],
-  [155, 91, 70, 245],
+  [76, 112, 126, 216],
+  [151, 176, 179, 216],
+  [225, 222, 211, 216],
+  [204, 159, 125, 216],
+  [155, 91, 70, 216],
 ];
 
 export interface LegendItem {
@@ -85,6 +86,46 @@ export function quantileThresholds(values: readonly number[]): number[] {
   return [0.2, 0.4, 0.6, 0.8].map((probability) =>
     quantile(sorted, probability),
   );
+}
+
+function lowerBound(sorted: readonly number[], target: number): number {
+  let low = 0;
+  let high = sorted.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if ((sorted[middle] ?? Number.POSITIVE_INFINITY) < target) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+  return low;
+}
+
+function upperBound(sorted: readonly number[], target: number): number {
+  let low = 0;
+  let high = sorted.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if ((sorted[middle] ?? Number.POSITIVE_INFINITY) <= target) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+  return low;
+}
+
+/** Deterministic midrank percentile, including stable handling for ties. */
+export function empiricalPercentileRank(
+  sortedValues: readonly number[],
+  value: number,
+): number {
+  if (sortedValues.length <= 1) return 0.5;
+  const first = lowerBound(sortedValues, value);
+  const afterLast = upperBound(sortedValues, value);
+  const midrank = (first + Math.max(first, afterLast - 1)) / 2;
+  return midrank / (sortedValues.length - 1);
 }
 
 function paletteFor(metric: MapMetricKey): readonly MapColor[] {
@@ -147,15 +188,15 @@ function thresholdLabels(
 
 export function createMetricColorScale(
   features: readonly TractFeature[],
-  domain: DomainKey,
+  domain: ExploreDomainKey,
   metric: MapMetricKey,
 ): MetricColorScale {
   const definition = MAP_METRICS[metric];
 
   if (metric === "allocation_eligibility") {
     const colors: readonly MapColor[] = [
-      [203, 198, 187, 245],
-      [76, 119, 107, 245],
+      [203, 198, 187, 205],
+      [76, 119, 107, 205],
     ];
     return {
       metric,
@@ -174,6 +215,11 @@ export function createMetricColorScale(
   }
 
   const values = getMetricValues(features, domain, metric);
+  const collectiveIntensity =
+    domain === "collective" && metric === "complaint_intensity";
+  const collectiveRates = collectiveIntensity
+    ? values.slice().sort((left, right) => left - right)
+    : [];
   const thresholds =
     definition.scale === "percentile"
       ? [0.2, 0.4, 0.6, 0.8]
@@ -183,7 +229,9 @@ export function createMetricColorScale(
 
   return {
     metric,
-    label: definition.legendLabel,
+    label: collectiveIntensity
+      ? "Collective complaints per 1,000 (citywide percentile)"
+      : definition.legendLabel,
     thresholds,
     colors,
     legendItems: [
@@ -197,10 +245,17 @@ export function createMetricColorScale(
         texture: "muted" as const,
       },
     ],
-    colorFor: (value) =>
-      value === null
-        ? MAP_COLORS.unavailable
-        : colors[binIndex(value, thresholds)] ?? colors.at(-1) ?? MAP_COLORS.unavailable,
+    colorFor: (value) => {
+      if (value === null) return MAP_COLORS.unavailable;
+      const scaleValue = collectiveIntensity
+        ? empiricalPercentileRank(collectiveRates, value)
+        : value;
+      return (
+        colors[binIndex(scaleValue, thresholds)] ??
+        colors.at(-1) ??
+        MAP_COLORS.unavailable
+      );
+    },
   };
 }
 
@@ -238,7 +293,7 @@ export const NEIGHBORHOOD_LEGEND: readonly LegendItem[] = [
 
 export function getFeatureColor(
   feature: TractFeature,
-  domain: DomainKey,
+  domain: ExploreDomainKey,
   metric: MapMetricKey,
   scale: MetricColorScale,
 ): MapColor {

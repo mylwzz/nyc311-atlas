@@ -25,7 +25,7 @@ const COMPARISON_METRICS: readonly ComparisonMetric[] = [
     format: formatInteger,
   },
   {
-    label: "Mapped complaint volume captured",
+    label: "Share of mapped complaints in surfaced tracts",
     value: ({ metrics }) => metrics.mappedComplaintVolumeCapturedPct,
     format: formatPercent,
   },
@@ -35,23 +35,24 @@ const COMPARISON_METRICS: readonly ComparisonMetric[] = [
     format: formatPercent,
   },
   {
-    label: "Q1 tracts in selection",
+    label: "Lower-income tract share",
     value: ({ metrics }) => metrics.selectedQ1TractSharePct,
     format: formatPercent,
   },
   {
-    label: "Expected cohort open at age 30",
+    label: "Estimated still open after 30 days",
     value: ({ metrics }) => metrics.selectedOpenAt30d,
     format: formatExpected,
   },
   {
-    label: "Expected cohort open at age 180",
+    label: "Estimated still open after ~6 months",
     value: ({ metrics }) => metrics.selectedOpenAt180d,
     format: formatExpected,
   },
 ];
 
 function ScenarioIdentity({ scenario }: { scenario: Scenario }) {
+  const intensityWeight = Math.round(scenario.alphaIntensity * 100);
   return (
     <span>
       {scenario.scalingMode === "rank_balanced"
@@ -59,10 +60,10 @@ function ScenarioIdentity({ scenario }: { scenario: Scenario }) {
         : "Magnitude-sensitive"}
       {" · "}
       {scenario.domainLabel}
-      {" · K "}
-      {scenario.k}
-      {" · alpha "}
-      {scenario.alphaIntensity.toFixed(1)}
+      {" · "}
+      {intensityWeight}% complaint-intensity weight
+      {" · "}
+      {scenario.k} tracts
     </span>
   );
 }
@@ -130,11 +131,11 @@ export function ScenarioComparison({
     <div className={styles.comparison}>
       <div className={styles.identityGrid}>
         <div>
-          <span className="eyebrow">Current</span>
+          <span className="eyebrow">Current definition</span>
           <ScenarioIdentity scenario={current} />
         </div>
         <div>
-          <span className="eyebrow">Pinned</span>
+          <span className="eyebrow">Saved definition</span>
           <ScenarioIdentity scenario={pinned} />
         </div>
       </div>
@@ -142,11 +143,11 @@ export function ScenarioComparison({
       <div className={styles.membershipSummary}>
         <div>
           <strong>{comparison.enteredGeoids.length}</strong>
-          <span>Entered</span>
+          <span>Newly surfaced</span>
         </div>
         <div>
           <strong>{comparison.exitedGeoids.length}</strong>
-          <span>Exited</span>
+          <span>No longer surfaced</span>
         </div>
         <div>
           <strong>{comparison.sharedGeoids.length}</strong>
@@ -154,8 +155,8 @@ export function ScenarioComparison({
         </div>
       </div>
       <p className="helper-text">
-        Entered and exited tracts describe the current selection scenario relative
-        to the pinned one. Rank order is {comparison.rankOrderUnchanged ? "the same" : "different"}.
+        Changes compare the current priority definition with the saved one. Rank
+        order is {comparison.rankOrderUnchanged ? "the same" : "different"}.
       </p>
       {comparison.membershipUnchanged &&
       current.alphaIntensity !== pinned.alphaIntensity ? (
@@ -167,12 +168,12 @@ export function ScenarioComparison({
 
       <div className={styles.membershipLists}>
         <MembershipList
-          label="Entered tracts"
+          label="Newly surfaced tracts"
           geoids={comparison.enteredGeoids}
           featureByGeoid={featureByGeoid}
         />
         <MembershipList
-          label="Exited tracts"
+          label="Tracts no longer surfaced"
           geoids={comparison.exitedGeoids}
           featureByGeoid={featureByGeoid}
         />
@@ -184,13 +185,13 @@ export function ScenarioComparison({
       </div>
 
       <details className="disclosure">
-        <summary>Metric comparison</summary>
+        <summary>Metric changes</summary>
         <table className="data-table">
           <thead>
             <tr>
               <th scope="col">Metric</th>
-              <th scope="col">Current</th>
-              <th scope="col">Pinned</th>
+              <th scope="col">Current definition</th>
+              <th scope="col">Saved definition</th>
               <th scope="col">Change</th>
             </tr>
           </thead>

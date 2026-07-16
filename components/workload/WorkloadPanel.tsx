@@ -14,19 +14,63 @@ import {
 import {
   aggregateWorkloadScope,
   evaluateWorkload,
+  type WorkloadAgeBucket,
   type WorkloadAggregate,
   type WorkloadModelConfig,
 } from "@/lib/workload";
+import { InfoMarker } from "@/components/ui/InfoMarker";
 
-import { ArrivalsClosuresChart, OpenBalanceChart, OpenByAgeChart } from "./WorkloadCharts";
+import {
+  ArrivalsClosuresChart,
+  OpenBalanceChart,
+  OpenByAgeChart,
+  UncertaintyIntervalBand,
+} from "./WorkloadCharts";
+import styles from "./WorkloadPanel.module.css";
 
 const SCOPE_LABELS: Record<WorkloadScope, string> = {
   active_tract: "Active tract",
   selected_tracts: "Selected tracts",
-  active_neighborhood: "Active neighborhood",
-  current_scenario: "Current Scenario Lab selection",
-  pinned_scenario: "Pinned Scenario Lab selection",
+  active_neighborhood: "Nearby tracts",
+  current_scenario: "Current priority selection",
+  pinned_scenario: "Saved priority comparison",
 };
+
+const AGE_BUCKET_LABELS: readonly {
+  key: WorkloadAgeBucket;
+  label: string;
+}[] = [
+  { key: "0_30", label: "First month" },
+  { key: "31_60", label: "1–2 months" },
+  { key: "61_90", label: "2–3 months" },
+  { key: "91_180", label: "3–6 months" },
+  { key: "181_360", label: "6–12 months" },
+  { key: "361_plus", label: "Over a year" },
+];
+
+function scopeDescription(scope: WorkloadScope, tractCount: number): string {
+  const tractWord = tractCount === 1 ? "tract" : "tracts";
+  switch (scope) {
+    case "active_tract":
+      return tractCount === 1 ? "active tract" : "no active tract";
+    case "selected_tracts":
+      return tractCount > 1
+        ? `pooled across ${tractCount} selected tracts`
+        : `${tractCount} selected ${tractWord}`;
+    case "active_neighborhood":
+      return tractCount > 0
+        ? `pooled across ${tractCount} nearby ${tractWord}`
+        : "no nearby tracts";
+    case "current_scenario":
+      return tractCount > 0
+        ? `pooled across ${tractCount} tracts in the current priority selection`
+        : "no current priority selection";
+    case "pinned_scenario":
+      return tractCount > 0
+        ? `pooled across ${tractCount} tracts in the saved priority comparison`
+        : "no saved priority comparison";
+  }
+}
 
 interface WorkerReply {
   id: number;
@@ -51,14 +95,14 @@ function modelConfig(workload: Workload): WorkloadModelConfig {
   };
 }
 
-function sparseMessage(status: WorkloadAggregate["sampleStatus"]): string {
-  switch (status) {
+function sparseMessage(aggregate: WorkloadAggregate): string {
+  switch (aggregate.sampleStatus) {
     case "no_requests":
-      return "No mapped requests occur in this scope and service domain. There is no closure curve, historical replay, open-at-age estimate, or uncertainty result.";
+      return "No mapped requests in this scope and service domain.";
     case "no_known_timing":
-      return "Mapped requests are present, but recorded closure timing is unavailable. Arrivals remain visible; closure-derived results are suppressed.";
+      return "Closure timing is unavailable for this scope. Request arrivals remain visible.";
     case "insufficient_sample":
-      return "The pooled scope has fewer than 30 known timing outcomes. Arrivals remain visible; the closure curve, replay, open-at-age estimate, and uncertainty are suppressed.";
+      return `Sample: ${formatInteger(aggregate.knownTiming)} requests · 30 needed for response modeling. Request arrivals remain visible.`;
     case "sufficient":
       return "";
   }
@@ -192,6 +236,7 @@ export interface WorkloadPanelProps {
   onRequestAgeChange: (age: 30 | 180) => void;
   onDemandChange: (value: number) => void;
   onClosureShift: (value: number) => void;
+  onReadMethod?: () => void;
 }
 
 export function WorkloadPanel(props: WorkloadPanelProps) {
@@ -214,6 +259,7 @@ export function WorkloadPanel(props: WorkloadPanelProps) {
     onRequestAgeChange,
     onDemandChange,
     onClosureShift,
+    onReadMethod,
   } = props;
 
   useEffect(() => {
@@ -274,275 +320,740 @@ export function WorkloadPanel(props: WorkloadPanelProps) {
     tab === "scenario",
   );
 
-  if (loading && !workload) {
-    return <div className="panel-section"><div className="loading-line" /><p className="helper-text">Loading workload records…</p></div>;
-  }
-  if (error && !workload) {
-    return <div className="panel-section"><div className="error-state">{error.message}</div><button className="button" type="button" onClick={onLoad}>Retry</button></div>;
-  }
+  const assumptionBased = tab === "scenario";
+  const scopeSummary = `${DOMAIN_CONFIG[domain].label} · ${scopeDescription(
+    scope,
+    scopeGeoids.length,
+  )}`;
 
   return (
     <>
       <header className="rail-header">
-        <div className="eyebrow">Workload workspace</div>
-        <h2 className="rail-title">Recorded closure replay</h2>
-        <p className="helper-text">Historical arrivals and recorded administrative closure—not a forecast or full agency backlog.</p>
+        <h2 className="rail-title">Model request flow</h2>
+        <p className="helper-text">
+          Replay historical request cohorts and test explicit assumptions.
+        </p>
+        <p className={styles.localBoundary}>
+          Historical replay and assumption-based modeling—not a current agency
+          forecast.
+        </p>
       </header>
-      <section className="panel-section field-group">
-        <div className="segmented" aria-label="Workload view">
-          <button type="button" aria-pressed={tab === "historical"} onClick={() => onTabChange("historical")}>Historical Replay</button>
-          <button type="button" aria-pressed={tab === "scenario"} onClick={() => onTabChange("scenario")}>Scenario</button>
-        </div>
+
+      <section className={`panel-section field-group ${styles.scopeSection}`}>
         <div className="field-stack">
-          <label className="field-label" htmlFor="workload-domain">Service domain</label>
-          <select id="workload-domain" className="select" value={domain} onChange={(event) => onDomainChange(event.target.value as DomainKey)}>
-            {DOMAIN_KEYS.map((key) => <option key={key} value={key}>{DOMAIN_CONFIG[key].label}</option>)}
+          <label className="field-label" htmlFor="workload-scope">
+            Analyze
+          </label>
+          <select
+            id="workload-scope"
+            className="select"
+            value={scope}
+            onChange={(event) =>
+              onScopeChange(event.target.value as WorkloadScope)
+            }
+          >
+            {Object.entries(SCOPE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </select>
         </div>
         <div className="field-stack">
-          <label className="field-label" htmlFor="workload-scope">Scope</label>
-          <select id="workload-scope" className="select" value={scope} onChange={(event) => onScopeChange(event.target.value as WorkloadScope)}>
-            {Object.entries(SCOPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          <label className="field-label" htmlFor="workload-domain">
+            Service domain
+          </label>
+          <select
+            id="workload-domain"
+            className="select"
+            value={domain}
+            onChange={(event) =>
+              onDomainChange(event.target.value as DomainKey)
+            }
+          >
+            {DOMAIN_KEYS.map((key) => (
+              <option key={key} value={key}>
+                {DOMAIN_CONFIG[key].label}
+              </option>
+            ))}
           </select>
         </div>
-        <div className="metadata-line">
-          <span>{DOMAIN_CONFIG[domain].label}</span>
-          <span>{scopeGeoids.length} tract{scopeGeoids.length === 1 ? "" : "s"}</span>
-          {scopeGeoids.length > 1 ? <span>Pooled across {scopeGeoids.length} tracts</span> : null}
-          <span>{aggregate ? `${formatInteger(aggregate.knownTiming)} known timing outcomes` : "No available scope"}</span>
-        </div>
+        <p className={styles.scopeSummary} aria-live="polite">
+          {scopeSummary}
+        </p>
       </section>
 
-      {tab === "scenario" ? (
-        <section className="panel-section field-group" aria-labelledby="assumption-heading">
+      <div className={`panel-section ${styles.modelTabs}`}>
+        <div className="segmented" aria-label="Model view">
+          <button
+            type="button"
+            aria-pressed={tab === "historical"}
+            onClick={() => onTabChange("historical")}
+          >
+            Historical
+          </button>
+          <button
+            type="button"
+            aria-pressed={tab === "scenario"}
+            onClick={() => onTabChange("scenario")}
+          >
+            What-if
+          </button>
+        </div>
+      </div>
+
+      {loading && !workload ? (
+        <div className="panel-section" role="status">
+          <div className="loading-line" />
+          <p className="helper-text">Loading workload records…</p>
+        </div>
+      ) : error && !workload ? (
+        <div className="panel-section">
+          <div className="error-state" role="alert">
+            {error.message}
+          </div>
+          <button className="button" type="button" onClick={onLoad}>
+            Retry
+          </button>
+        </div>
+      ) : null}
+
+      {assumptionBased ? (
+        <section
+          className="panel-section field-group"
+          aria-labelledby="assumption-heading"
+        >
           <div>
-            <div className="eyebrow">Assumptions</div>
-            <h3 className="section-title" id="assumption-heading">Assumption-based workload scenario</h3>
+            <div className="eyebrow">What-if assumptions</div>
+            <h3 className="section-title" id="assumption-heading">
+              Assumption-based workload scenario
+            </h3>
           </div>
           <div className="field-stack">
-            <label className="field-label" htmlFor="demand-change">Demand change</label>
+            <label className="field-label" htmlFor="demand-change">
+              Change expected request arrivals
+            </label>
             <div className="range-row">
-              <input id="demand-change" type="range" min={-30} max={50} step={1} value={demandChangePct} onChange={(event) => onDemandChange(Number(event.target.value))} />
-              <output className="range-value" htmlFor="demand-change">{formatSigned(demandChangePct, "%")}</output>
+              <input
+                id="demand-change"
+                type="range"
+                min={-30}
+                max={50}
+                step={1}
+                value={demandChangePct}
+                onChange={(event) =>
+                  onDemandChange(Number(event.target.value))
+                }
+              />
+              <output className="range-value" htmlFor="demand-change">
+                {formatSigned(demandChangePct, "%")}
+              </output>
             </div>
           </div>
           <div className="field-stack">
-            <label className="field-label" htmlFor="closure-shift">Recorded closure-curve shift</label>
-            <div className="range-row">
-              <input id="closure-shift" type="range" min={-15} max={15} step={1} value={closureCurveShiftPoints} onChange={(event) => onClosureShift(Number(event.target.value))} />
-              <output className="range-value" htmlFor="closure-shift">{formatSigned(closureCurveShiftPoints, " pp")}</output>
+            <div className={styles.labelWithHelp}>
+              <label className="field-label" htmlFor="closure-shift">
+                Change closure pace
+              </label>
+              <InfoMarker
+                label="About the recorded-closure pace assumption"
+                onReadMethod={onReadMethod}
+              >
+                <p>
+                  This shifts the historical closure curve directly by
+                  the stated number of percentage points. It is not a validated
+                  staffing or policy effect.
+                </p>
+              </InfoMarker>
+            </div>
+            <div className={`range-row ${styles.closureRange}`}>
+              <input
+                id="closure-shift"
+                type="range"
+                min={-15}
+                max={30}
+                step={1}
+                value={closureCurveShiftPoints}
+                onChange={(event) =>
+                  onClosureShift(Number(event.target.value))
+                }
+              />
+              <output className="range-value" htmlFor="closure-shift">
+                {formatSigned(
+                  closureCurveShiftPoints,
+                  " percentage points",
+                )}
+              </output>
             </div>
           </div>
-          <p className="helper-text">Demand multiplies every historical arrival period. The closure shift adds percentage points at every request-age checkpoint and clamps to 0–100%.</p>
+          <p className="helper-text">
+            The arrival change applies to every historical period. The closure
+            change adds the stated percentage points at every request-age
+            checkpoint and clamps each probability to 0–1 (0%–100%).
+          </p>
         </section>
       ) : null}
 
-      {!workload ? (
-        <div className="panel-section empty-state">Workload data has not loaded.</div>
-      ) : !aggregate || !evaluation ? (
-        <div className="panel-section empty-state">This scope is empty. Choose an active tract, selection, neighborhood, or Scenario Lab selection.</div>
-      ) : (
+      {!workload && !loading && !error ? (
+        <div className="panel-section empty-state">
+          Workload data has not loaded.
+        </div>
+      ) : workload && (!aggregate || !evaluation) ? (
+        <div className="panel-section empty-state">
+          This scope is empty. Choose an active tract, selected tracts, nearby
+          tracts, or a priority selection.
+        </div>
+      ) : workload && aggregate && evaluation ? (
         <>
           <section className="panel-section" aria-labelledby="arrival-heading">
             <div className="section-heading-row">
               <div>
-                <div className="eyebrow">
-                  {tab === "scenario"
-                    ? "Assumption-based workload scenario"
-                    : "Actual historical periods"}
-                </div>
+                {assumptionBased ? (
+                  <div className={styles.assumptionLabel}>
+                    Assumption-based workload scenario
+                  </div>
+                ) : (
+                  <div className="eyebrow">Observed arrival record</div>
+                )}
                 <h3 className="section-title" id="arrival-heading">
-                  {tab === "scenario"
-                    ? "Historical arrival pattern under stated assumptions"
-                    : "2016 historical 30-day arrival pattern"}
+                  Historical arrival pattern
                 </h3>
               </div>
               <span className="metadata">13 periods</span>
             </div>
             <div className="workload-summary">
-              <div><strong>{formatExpected(evaluation.meanFullPeriodArrivals)}</strong><span className="helper-text">Mean complete-period arrivals</span></div>
-              <div><strong>{formatInteger(aggregate.requestCount)}</strong><span className="helper-text">Mapped complaints</span></div>
+              <div>
+                <strong>
+                  {formatExpected(evaluation.meanFullPeriodArrivals)}
+                </strong>
+                <span className="helper-text">
+                  Average new requests per full month
+                </span>
+              </div>
+              <div>
+                <strong>{formatInteger(aggregate.requestCount)}</strong>
+                <span className="helper-text">Requests in this scope</span>
+              </div>
             </div>
             <div
-              className="period-strip"
-              aria-label={tab === "scenario"
-                ? "Arrival periods · Assumption-based workload scenario"
-                : "Arrival periods"}
+              className={`period-strip ${styles.periodStrip}`}
+              aria-label={
+                assumptionBased
+                  ? "Arrival periods · Assumption-based workload scenario"
+                  : "Arrival periods"
+              }
             >
               {workload.periods.map((period, index) => (
-                <div key={period.index} className={`period-cell${period.isFullPeriod ? "" : " partial"}`}>
+                <div
+                  key={period.index}
+                  className={`period-cell${
+                    period.isFullPeriod ? "" : " partial"
+                  }`}
+                >
                   <span>P{index + 1}</span>
-                  <strong>{formatExpected(evaluation.periodArrivals[index])}</strong>
-                  <small>{formatDateRange(period.start, period.observedEnd)}</small>
-                  <small>{period.isFullPeriod ? "30 days" : "6 days · partial"}</small>
+                  <strong>
+                    {formatExpected(evaluation.periodArrivals[index])}
+                  </strong>
+                  <small>
+                    {formatDateRange(period.start, period.observedEnd)}
+                  </small>
+                  <small>
+                    {period.isFullPeriod ? "30 days" : "6 days · partial"}
+                  </small>
                 </div>
               ))}
             </div>
             <p className="helper-text">
-              {tab === "scenario"
-                ? "The stated demand change is applied to every displayed historical period. The final six-day period remains visibly partial and is excluded from complete-period means and uncertainty resampling."
-                : "The final six-day period is visibly partial and excluded from complete-period means and uncertainty resampling."}
+              {assumptionBased
+                ? "The stated arrival assumption is applied to every displayed historical period. The average uses the twelve complete historical months. The final six-day period remains partial and is excluded from the average and uncertainty resampling."
+                : "The average uses the twelve complete historical months. The final six-day period is partial and excluded from the average and uncertainty resampling."}
             </p>
+            {evaluation.replay ? (
+              <ArrivalsClosuresChart
+                replay={evaluation.replay}
+                arrivalPeriodCount={workload.periods.length}
+                assumptionBased={assumptionBased}
+              />
+            ) : null}
           </section>
 
           {aggregate.sampleStatus !== "sufficient" ? (
-            <section className="panel-section"><div className="warning-box">{sparseMessage(aggregate.sampleStatus)}</div></section>
+            <>
+              <section className="panel-section">
+                <div className="warning-box">
+                  {sparseMessage(aggregate)}
+                </div>
+              </section>
+              <section className="panel-section field-group">
+                <OpenBalanceChart replay={[]} />
+              </section>
+              <section className="panel-section field-group">
+                <OpenByAgeChart replay={[]} />
+              </section>
+            </>
           ) : evaluation.replay ? (
             <>
-              {tab === "scenario" && baselineEvaluation?.replay ? (
-                <section className="panel-section field-group" aria-labelledby="baseline-comparison-heading">
-                  <div>
-                    <div className="eyebrow">Assumption-based workload scenario</div>
-                    <h3 className="section-title" id="baseline-comparison-heading">Change from historical replay</h3>
+              {assumptionBased && baselineEvaluation?.replay ? (
+                <section
+                  className="panel-section field-group"
+                  aria-labelledby="baseline-comparison-heading"
+                >
+                  <div className={styles.assumptionLabel}>
+                    Assumption-based workload scenario
                   </div>
+                  <h3
+                    className="section-title"
+                    id="baseline-comparison-heading"
+                  >
+                    Change from historical replay
+                  </h3>
                   <div className="comparison-wrap">
                     <table className="data-table">
-                      <thead><tr><th>Result</th><th>Historical replay</th><th>Assumption scenario</th><th>Change</th></tr></thead>
+                      <thead>
+                        <tr>
+                          <th>Result</th>
+                          <th>Historical</th>
+                          <th>What-if</th>
+                          <th>Change</th>
+                        </tr>
+                      </thead>
                       <tbody>
                         <tr>
-                          <th scope="row">Mean complete-period arrivals</th>
-                          <td>{formatExpected(baselineEvaluation.meanFullPeriodArrivals)}</td>
-                          <td>{formatExpected(evaluation.meanFullPeriodArrivals)}</td>
-                          <td>{formatSigned(evaluation.meanFullPeriodArrivals - baselineEvaluation.meanFullPeriodArrivals)}</td>
+                          <th scope="row">
+                            Average new requests per full month
+                          </th>
+                          <td>
+                            {formatExpected(
+                              baselineEvaluation.meanFullPeriodArrivals,
+                            )}
+                          </td>
+                          <td>
+                            {formatExpected(evaluation.meanFullPeriodArrivals)}
+                          </td>
+                          <td>
+                            {formatSigned(
+                              evaluation.meanFullPeriodArrivals -
+                                baselineEvaluation.meanFullPeriodArrivals,
+                            )}
+                          </td>
                         </tr>
                         <tr>
-                          <th scope="row">Expected cohort open at age 30</th>
-                          <td>{formatExpected(baselineEvaluation.cohortOpenAt30Days)}</td>
-                          <td>{formatExpected(evaluation.cohortOpenAt30Days)}</td>
-                          <td>{formatSigned((evaluation.cohortOpenAt30Days ?? 0) - (baselineEvaluation.cohortOpenAt30Days ?? 0))}</td>
+                          <th scope="row">
+                            Modeled still open after 30 days
+                          </th>
+                          <td>
+                            {formatExpected(
+                              baselineEvaluation.cohortOpenAt30Days,
+                            )}
+                          </td>
+                          <td>
+                            {formatExpected(evaluation.cohortOpenAt30Days)}
+                          </td>
+                          <td>
+                            {formatSigned(
+                              (evaluation.cohortOpenAt30Days ?? 0) -
+                                (baselineEvaluation.cohortOpenAt30Days ?? 0),
+                            )}
+                          </td>
                         </tr>
                         <tr>
-                          <th scope="row">Expected cohort open at age 180</th>
-                          <td>{formatExpected(baselineEvaluation.cohortOpenAt180Days)}</td>
-                          <td>{formatExpected(evaluation.cohortOpenAt180Days)}</td>
-                          <td>{formatSigned((evaluation.cohortOpenAt180Days ?? 0) - (baselineEvaluation.cohortOpenAt180Days ?? 0))}</td>
+                          <th scope="row">
+                            Modeled still open after ~6 months
+                          </th>
+                          <td>
+                            {formatExpected(
+                              baselineEvaluation.cohortOpenAt180Days,
+                            )}
+                          </td>
+                          <td>
+                            {formatExpected(evaluation.cohortOpenAt180Days)}
+                          </td>
+                          <td>
+                            {formatSigned(
+                              (evaluation.cohortOpenAt180Days ?? 0) -
+                                (baselineEvaluation.cohortOpenAt180Days ?? 0),
+                            )}
+                          </td>
                         </tr>
                         <tr>
-                          <th scope="row">Peak expected open balance</th>
-                          <td>{formatExpected(Math.max(...baselineEvaluation.replay.map((period) => period.expectedOpenBalance)))}</td>
-                          <td>{formatExpected(Math.max(...evaluation.replay.map((period) => period.expectedOpenBalance)))}</td>
-                          <td>{formatSigned(Math.max(...evaluation.replay.map((period) => period.expectedOpenBalance)) - Math.max(...baselineEvaluation.replay.map((period) => period.expectedOpenBalance)))}</td>
+                          <th scope="row">
+                            Peak modeled requests still open
+                          </th>
+                          <td>
+                            {formatExpected(
+                              Math.max(
+                                ...baselineEvaluation.replay.map(
+                                  (period) => period.expectedOpenBalance,
+                                ),
+                              ),
+                            )}
+                          </td>
+                          <td>
+                            {formatExpected(
+                              Math.max(
+                                ...evaluation.replay.map(
+                                  (period) => period.expectedOpenBalance,
+                                ),
+                              ),
+                            )}
+                          </td>
+                          <td>
+                            {formatSigned(
+                              Math.max(
+                                ...evaluation.replay.map(
+                                  (period) => period.expectedOpenBalance,
+                                ),
+                              ) -
+                                Math.max(
+                                  ...baselineEvaluation.replay.map(
+                                    (period) => period.expectedOpenBalance,
+                                  ),
+                                ),
+                            )}
+                          </td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
-                  <details className="disclosure">
-                    <summary>Period and age-composition comparison</summary>
-                    <div className="comparison-wrap">
-                      <table className="data-table">
-                        <thead><tr><th>Period</th><th>Arrival Δ</th><th>Expected recorded-closure Δ</th><th>Open balance Δ</th><th>Net open-workload Δ</th><th>0–30 Δ</th><th>31–180 Δ</th><th>181+ Δ</th></tr></thead>
-                        <tbody>{evaluation.replay.map((period, index) => {
-                          const baseline = baselineEvaluation.replay?.[index];
-                          if (!baseline) return null;
-                          const middle = period.openByAge["31_60"] + period.openByAge["61_90"] + period.openByAge["91_180"];
-                          const baselineMiddle = baseline.openByAge["31_60"] + baseline.openByAge["61_90"] + baseline.openByAge["91_180"];
-                          const older = period.openByAge["181_360"] + period.openByAge["361_plus"];
-                          const baselineOlder = baseline.openByAge["181_360"] + baseline.openByAge["361_plus"];
-                          return <tr key={period.periodIndex}>
-                            <td>P{period.periodIndex + 1}</td>
-                            <td>{formatSigned(period.newRequests - baseline.newRequests)}</td>
-                            <td>{formatSigned(period.expectedRecordedClosures - baseline.expectedRecordedClosures)}</td>
-                            <td>{formatSigned(period.expectedOpenBalance - baseline.expectedOpenBalance)}</td>
-                            <td>{formatSigned(period.netOpenChange - baseline.netOpenChange)}</td>
-                            <td>{formatSigned(period.openByAge["0_30"] - baseline.openByAge["0_30"])}</td>
-                            <td>{formatSigned(middle - baselineMiddle)}</td>
-                            <td>{formatSigned(older - baselineOlder)}</td>
-                          </tr>;
-                        })}</tbody>
-                      </table>
-                    </div>
-                  </details>
                 </section>
               ) : null}
+
               <section className="panel-section field-group">
-                {tab === "scenario" ? <div className="eyebrow">Assumption-based workload scenario</div> : null}
-                <ArrivalsClosuresChart replay={evaluation.replay} arrivalPeriodCount={workload.periods.length} />
-                <OpenBalanceChart replay={evaluation.replay} />
-                <OpenByAgeChart replay={evaluation.replay} />
-                <details className="disclosure">
-                  <summary>Replay period details</summary>
-                  <div className="comparison-wrap">
-                    <table className="data-table">
-                      <thead><tr><th>Period</th><th>New requests</th><th>Expected recorded closures</th><th>Expected open balance</th><th>Net open-workload change</th></tr></thead>
-                      <tbody>{evaluation.replay.map((period) => (
-                        <tr key={period.periodIndex}>
-                          <td>
-                            P{period.periodIndex + 1}
-                            {period.periodIndex < workload.periods.length
-                              ? ` · ${formatDateRange(workload.periods[period.periodIndex].start, workload.periods[period.periodIndex].observedEnd)}`
-                              : " · runoff"}
-                            {period.periodIndex === 12 ? " · partial" : ""}
-                          </td>
-                          <td>{formatExpected(period.newRequests)}</td>
-                          <td>{formatExpected(period.expectedRecordedClosures)}</td>
-                          <td>{formatExpected(period.expectedOpenBalance)}</td>
-                          <td>{formatSigned(period.netOpenChange)}</td>
-                        </tr>
-                      ))}</tbody>
-                    </table>
-                  </div>
-                </details>
+                <OpenBalanceChart
+                  replay={evaluation.replay}
+                  assumptionBased={assumptionBased}
+                />
+                <p className={styles.runoffNote}>
+                  After the 13 observed arrival periods, six model-only
+                  follow-through periods add no new requests. They carry the
+                  existing cohorts forward with the active recorded-closure
+                  curve to show how the number still open changes.
+                </p>
               </section>
 
-              <section className="panel-section field-group" aria-labelledby="request-age-heading">
-                <div className="section-heading-row">
-                  <div>
-                    <div className="eyebrow">Request-age checkpoint</div>
-                    <h3 className="section-title" id="request-age-heading">Evaluate a 30-day arrival cohort after</h3>
+              <section className="panel-section field-group">
+                <OpenByAgeChart
+                  replay={evaluation.replay}
+                  assumptionBased={assumptionBased}
+                />
+              </section>
+
+              <section
+                className="panel-section field-group"
+                aria-labelledby="request-age-heading"
+              >
+                {assumptionBased ? (
+                  <div className={styles.assumptionLabel}>
+                    Assumption-based workload scenario
                   </div>
-                  <div className="segmented">
-                    {[30, 180].map((age) => <button key={age} type="button" aria-pressed={requestAgeDays === age} onClick={() => onRequestAgeChange(age as 30 | 180)}>Age {age}</button>)}
-                  </div>
+                ) : null}
+                <div>
+                  <div className="eyebrow">Request-age checkpoint</div>
+                  <h3 className="section-title" id="request-age-heading">
+                    Evaluate a 30-day arrival cohort after
+                  </h3>
                 </div>
-                {tab === "scenario" ? <div className="eyebrow">Assumption-based workload scenario</div> : null}
-                {uncertainty.status === "loading" ? <div className="loading-line" /> : uncertainty.error ? <div className="error-state">{uncertainty.error}</div> : uncertainty.result ? (
+                <div className="segmented" aria-label="Request age">
+                  {[30, 180].map((age) => (
+                    <button
+                      key={age}
+                      type="button"
+                      aria-pressed={requestAgeDays === age}
+                      onClick={() => onRequestAgeChange(age as 30 | 180)}
+                    >
+                      {age} days
+                    </button>
+                  ))}
+                </div>
+                {uncertainty.status === "loading" ? (
+                  <div className="loading-line" />
+                ) : uncertainty.error ? (
+                  <div className="error-state">{uncertainty.error}</div>
+                ) : uncertainty.result ? (
                   <>
-                    <div className="metric-primary">{formatExpected(uncertainty.result.openMedian)}</div>
-                    <div className="metric-secondary">expected open at age {requestAgeDays}</div>
-                    <div className="metric-grid">
-                      <div className="metric-cell"><span className="label">Median recorded closure</span><span className="value">{formatPercent(uncertainty.result.closureMedianPct)}</span></div>
+                    <div className={styles.checkpointHero}>
+                      <div className="metric-primary">
+                        {formatExpected(uncertainty.result.openMedian)}
+                      </div>
+                      <div className="metric-secondary">
+                        median modeled still open after {requestAgeDays === 30 ? "30 days" : "~6 months"}
+                      </div>
                     </div>
+                    <UncertaintyIntervalBand
+                      lower={uncertainty.result.open80[0]}
+                      median={uncertainty.result.openMedian}
+                      upper={uncertainty.result.open80[1]}
+                      label="Typical range (middle 80%)"
+                      onReadMethod={onReadMethod}
+                    />
                     <div className="status-box">
-                      <strong>{formatExpected(uncertainty.result.open80[0])}–{formatExpected(uncertainty.result.open80[1])}</strong>
-                      <div className="helper-text">80% uncertainty interval · 1,000 draws</div>
+                      <strong>
+                        {formatExpected(uncertainty.result.open80[0])}{" – "}
+                        {formatExpected(uncertainty.result.open80[1])}
+                      </strong>
+                      <div className="helper-text">
+                        Typical range (middle 80%) · based on {workload.uncertainty.draws.toLocaleString("en-US")} resamples of complete historical months and closure uncertainty.
+                      </div>
                     </div>
-                    {tab === "scenario" && baselineUncertainty.result ? (
+                  </>
+                ) : null}
+                <p className="helper-text">
+                  This evaluates one 30-day arrival cohort after reaching request
+                  age {requestAgeDays}. It does not represent {requestAgeDays}
+                  {" "}days of accumulated arrivals.
+                </p>
+              </section>
+
+              <section className="panel-section">
+                <details className="disclosure">
+                  <summary>Technical details</summary>
+                  <div className={styles.technicalStack}>
+                    {uncertainty.result ? (
+                      <>
+                        <dl className="metric-grid">
+                          <div className="metric-cell">
+                            <dt className="label">95% modeled still-open range</dt>
+                            <dd className="value">
+                              {formatExpected(uncertainty.result.open95[0])}{" – "}
+                              {formatExpected(uncertainty.result.open95[1])}
+                            </dd>
+                          </div>
+                          <div className="metric-cell">
+                            <dt className="label">
+                              Median closure
+                            </dt>
+                            <dd className="value">
+                              {formatPercent(
+                                uncertainty.result.closureMedianPct,
+                              )}
+                            </dd>
+                          </div>
+                          <div className="metric-cell">
+                            <dt className="label">Closure range (middle 80%)</dt>
+                            <dd className="value">
+                              {formatPercent(
+                                uncertainty.result.closure80Pct[0],
+                              )}
+                              {" – "}
+                              {formatPercent(
+                                uncertainty.result.closure80Pct[1],
+                              )}
+                            </dd>
+                          </div>
+                          <div className="metric-cell">
+                            <dt className="label">Closure range (95%)</dt>
+                            <dd className="value">
+                              {formatPercent(
+                                uncertainty.result.closure95Pct[0],
+                              )}
+                              {" – "}
+                              {formatPercent(
+                                uncertainty.result.closure95Pct[1],
+                              )}
+                            </dd>
+                          </div>
+                        </dl>
+                        {assumptionBased && baselineUncertainty.result ? (
+                          <div className="comparison-wrap">
+                            <table className="data-table">
+                              <thead>
+                                <tr>
+                                  <th>Uncertainty result</th>
+                                  <th>Historical</th>
+                                  <th>What-if</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr>
+                                  <th scope="row">Median open</th>
+                                  <td>
+                                    {formatExpected(
+                                      baselineUncertainty.result.openMedian,
+                                    )}
+                                  </td>
+                                  <td>
+                                    {formatExpected(
+                                      uncertainty.result.openMedian,
+                                    )}
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <th scope="row">Still-open range (middle 80%)</th>
+                                  <td>
+                                    {formatExpected(
+                                      baselineUncertainty.result.open80[0],
+                                    )}
+                                    {" – "}
+                                    {formatExpected(
+                                      baselineUncertainty.result.open80[1],
+                                    )}
+                                  </td>
+                                  <td>
+                                    {formatExpected(
+                                      uncertainty.result.open80[0],
+                                    )}
+                                    {" – "}
+                                    {formatExpected(
+                                      uncertainty.result.open80[1],
+                                    )}
+                                  </td>
+                                </tr>
+                                <tr>
+                                  <th scope="row">Still-open range (95%)</th>
+                                  <td>
+                                    {formatExpected(
+                                      baselineUncertainty.result.open95[0],
+                                    )}
+                                    {" – "}
+                                    {formatExpected(
+                                      baselineUncertainty.result.open95[1],
+                                    )}
+                                  </td>
+                                  <td>
+                                    {formatExpected(
+                                      uncertainty.result.open95[0],
+                                    )}
+                                    {" – "}
+                                    {formatExpected(
+                                      uncertainty.result.open95[1],
+                                    )}
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : null}
+                        <div className={styles.methodNote}>
+                          <p>{workload.uncertainty.method}</p>
+                          <p>
+                            Recorded-closure probability uses a Jeffreys beta
+                            posterior: Beta(closed + 0.5, known − closed + 0.5).
+                          </p>
+                          <p>
+                            Deterministic seed: {"seed" in uncertainty.result
+                              ? uncertainty.result.seed.toLocaleString("en-US")
+                              : `${workload.uncertainty.seed.toLocaleString("en-US")} (artifact base seed)`}
+                            .
+                          </p>
+                        </div>
+                      </>
+                    ) : null}
+
+                    <div className="comparison-wrap">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Period</th>
+                            <th>New requests</th>
+                            <th>Modeled closures</th>
+                            <th>Modeled requests still open</th>
+                            <th>Net open-workload change</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {evaluation.replay.map((period) => (
+                            <tr key={period.periodIndex}>
+                              <td>
+                                P{period.periodIndex + 1}
+                                {period.periodIndex < workload.periods.length
+                                  ? ` · ${formatDateRange(
+                                      workload.periods[period.periodIndex].start,
+                                      workload.periods[period.periodIndex]
+                                        .observedEnd,
+                                    )}`
+                                  : " · model-only follow-through"}
+                                {period.periodIndex === 12
+                                  ? " · partial"
+                                  : ""}
+                              </td>
+                              <td>{formatExpected(period.newRequests)}</td>
+                              <td>
+                                {formatExpected(
+                                  period.expectedRecordedClosures,
+                                )}
+                              </td>
+                              <td>
+                                {formatExpected(period.expectedOpenBalance)}
+                              </td>
+                              <td>{formatSigned(period.netOpenChange)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {assumptionBased && baselineEvaluation?.replay ? (
                       <details className="disclosure">
-                        <summary>Historical and assumption uncertainty</summary>
+                        <summary>Period and age-composition comparison</summary>
                         <div className="comparison-wrap">
                           <table className="data-table">
-                            <thead><tr><th>Uncertainty result</th><th>Historical replay</th><th>Assumption scenario</th></tr></thead>
+                            <thead>
+                              <tr>
+                                <th>Period</th>
+                                <th>Arrival Δ</th>
+                                <th>Expected closure Δ</th>
+                                <th>Still-open requests Δ</th>
+                                <th>Net open Δ</th>
+                                {AGE_BUCKET_LABELS.map((bucket) => (
+                                  <th key={bucket.key}>{bucket.label} Δ</th>
+                                ))}
+                              </tr>
+                            </thead>
                             <tbody>
-                              <tr><th scope="row">Median open</th><td>{formatExpected(baselineUncertainty.result.openMedian)}</td><td>{formatExpected(uncertainty.result.openMedian)}</td></tr>
-                              <tr><th scope="row">80% open interval</th><td>{formatExpected(baselineUncertainty.result.open80[0])}–{formatExpected(baselineUncertainty.result.open80[1])}</td><td>{formatExpected(uncertainty.result.open80[0])}–{formatExpected(uncertainty.result.open80[1])}</td></tr>
-                              <tr><th scope="row">95% open interval</th><td>{formatExpected(baselineUncertainty.result.open95[0])}–{formatExpected(baselineUncertainty.result.open95[1])}</td><td>{formatExpected(uncertainty.result.open95[0])}–{formatExpected(uncertainty.result.open95[1])}</td></tr>
-                              <tr><th scope="row">Median recorded closure</th><td>{formatPercent(baselineUncertainty.result.closureMedianPct)}</td><td>{formatPercent(uncertainty.result.closureMedianPct)}</td></tr>
-                              <tr><th scope="row">80% closure interval</th><td>{formatPercent(baselineUncertainty.result.closure80Pct[0])}–{formatPercent(baselineUncertainty.result.closure80Pct[1])}</td><td>{formatPercent(uncertainty.result.closure80Pct[0])}–{formatPercent(uncertainty.result.closure80Pct[1])}</td></tr>
-                              <tr><th scope="row">95% closure interval</th><td>{formatPercent(baselineUncertainty.result.closure95Pct[0])}–{formatPercent(baselineUncertainty.result.closure95Pct[1])}</td><td>{formatPercent(uncertainty.result.closure95Pct[0])}–{formatPercent(uncertainty.result.closure95Pct[1])}</td></tr>
+                              {evaluation.replay.map((period, index) => {
+                                const baseline =
+                                  baselineEvaluation.replay?.[index];
+                                if (!baseline) return null;
+                                return (
+                                  <tr key={period.periodIndex}>
+                                    <td>P{period.periodIndex + 1}</td>
+                                    <td>
+                                      {formatSigned(
+                                        period.newRequests -
+                                          baseline.newRequests,
+                                      )}
+                                    </td>
+                                    <td>
+                                      {formatSigned(
+                                        period.expectedRecordedClosures -
+                                          baseline.expectedRecordedClosures,
+                                      )}
+                                    </td>
+                                    <td>
+                                      {formatSigned(
+                                        period.expectedOpenBalance -
+                                          baseline.expectedOpenBalance,
+                                      )}
+                                    </td>
+                                    <td>
+                                      {formatSigned(
+                                        period.netOpenChange -
+                                          baseline.netOpenChange,
+                                      )}
+                                    </td>
+                                    {AGE_BUCKET_LABELS.map((bucket) => (
+                                      <td key={bucket.key}>
+                                        {formatSigned(
+                                          period.openByAge[bucket.key] -
+                                            baseline.openByAge[bucket.key],
+                                        )}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
                       </details>
-                    ) : (
-                      <details className="disclosure">
-                        <summary>95% interval and recorded-closure uncertainty</summary>
-                        <dl className="metric-grid">
-                          <div className="metric-cell"><dt className="label">95% open interval</dt><dd className="value">{formatExpected(uncertainty.result.open95[0])}–{formatExpected(uncertainty.result.open95[1])}</dd></div>
-                          <div className="metric-cell"><dt className="label">Median recorded closure</dt><dd className="value">{formatPercent(uncertainty.result.closureMedianPct)}</dd></div>
-                          <div className="metric-cell"><dt className="label">80% closure interval</dt><dd className="value">{formatPercent(uncertainty.result.closure80Pct[0])}–{formatPercent(uncertainty.result.closure80Pct[1])}</dd></div>
-                          <div className="metric-cell"><dt className="label">95% closure interval</dt><dd className="value">{formatPercent(uncertainty.result.closure95Pct[0])}–{formatPercent(uncertainty.result.closure95Pct[1])}</dd></div>
-                        </dl>
-                      </details>
-                    )}
-                  </>
-                ) : null}
-                <p className="helper-text">This evaluates a 30-day arrival cohort after reaching request age {requestAgeDays}. It is not a projection horizon.</p>
-                <p className="helper-text">This interval reflects variation across the twelve complete 2016 arrival periods and finite-sample uncertainty in recorded closure. It does not include all possible future structural change.</p>
+                    ) : null}
+                  </div>
+                </details>
               </section>
             </>
           ) : null}
         </>
-      )}
+      ) : null}
     </>
   );
 }

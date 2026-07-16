@@ -4,6 +4,7 @@ import { create } from "zustand";
 import type {
   AlphaValue,
   DomainKey,
+  ExploreDomainKey,
   KValue,
   MapMetric,
   NeighborhoodMetric,
@@ -39,6 +40,8 @@ export type AssistantAction =
 export interface AtlasState {
   workspace: Workspace;
   activeDomain: DomainKey;
+  /** Explore-only complaint view; `activeDomain` remains artifact-backed. */
+  exploreDomain: ExploreDomainKey;
   activeMapMetric: MapMetric;
   selectedGeoids: string[];
   activeGeoid: string | null;
@@ -72,6 +75,7 @@ export interface AtlasState {
   methodologyOpen: boolean;
   setWorkspace: (workspace: Workspace) => void;
   setDomain: (domain: DomainKey) => void;
+  setExploreDomain: (domain: ExploreDomainKey) => void;
   setMapMetric: (metric: MapMetric) => void;
   toggleTract: (geoid: string) => void;
   selectTracts: (geoids: string[], activeGeoid?: string | null) => void;
@@ -107,6 +111,7 @@ export interface AtlasState {
 const initialState = {
   workspace: "explore" as const,
   activeDomain: "housing_building" as const,
+  exploreDomain: "housing_building" as const,
   activeMapMetric: "complaint_intensity" as const,
   selectedGeoids: [] as string[],
   activeGeoid: null as string | null,
@@ -152,7 +157,42 @@ export const useAtlasStore = create<AtlasState>((set, get) => ({
       activeDomain,
       scenario: { ...state.scenario, domain: activeDomain },
     })),
-  setMapMetric: (activeMapMetric) => set({ activeMapMetric }),
+  setExploreDomain: (exploreDomain) =>
+    set((state) => ({
+      exploreDomain,
+      assistant: { ...state.assistant, pendingAction: null },
+      activeMapMetric:
+        exploreDomain === "collective" &&
+        ![
+          "complaint_intensity",
+          "mapped_complaint_count",
+          "median_household_income",
+          "allocation_eligibility",
+        ].includes(state.activeMapMetric)
+          ? "complaint_intensity"
+          : state.activeMapMetric,
+      neighborhood:
+        exploreDomain === "collective" &&
+        ![
+          "complaint_intensity",
+          "mapped_complaint_count",
+        ].includes(state.neighborhood.metric)
+          ? { ...state.neighborhood, metric: "complaint_intensity" }
+          : state.neighborhood,
+    })),
+  setMapMetric: (activeMapMetric) =>
+    set((state) => ({
+      activeMapMetric:
+        state.exploreDomain === "collective" &&
+        ![
+          "complaint_intensity",
+          "mapped_complaint_count",
+          "median_household_income",
+          "allocation_eligibility",
+        ].includes(activeMapMetric)
+          ? "complaint_intensity"
+          : activeMapMetric,
+    })),
   toggleTract: (geoid) =>
     set((state) => {
       if (state.selectedGeoids.includes(geoid)) {
@@ -224,7 +264,17 @@ export const useAtlasStore = create<AtlasState>((set, get) => ({
   setNeighborhoodRadius: (radius) =>
     set((state) => ({ neighborhood: { ...state.neighborhood, radius } })),
   setNeighborhoodMetric: (metric) =>
-    set((state) => ({ neighborhood: { ...state.neighborhood, metric } })),
+    set((state) => ({
+      neighborhood: {
+        ...state.neighborhood,
+        metric:
+          state.exploreDomain === "collective" &&
+          metric !== "complaint_intensity" &&
+          metric !== "mapped_complaint_count"
+            ? "complaint_intensity"
+            : metric,
+      },
+    })),
   setScenarioControls: (controls) =>
     set((state) => ({
       activeDomain: controls.domain ?? state.activeDomain,
@@ -270,6 +320,7 @@ export const useAtlasStore = create<AtlasState>((set, get) => ({
         break;
       case "set_domain":
         get().setDomain(action.domain);
+        get().setExploreDomain(action.domain);
         break;
       case "set_map_metric":
         get().setMapMetric(action.metric);

@@ -7,11 +7,11 @@ import {
 import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
 
 import type {
-  DomainKey,
   TractFeature,
   TractFeatureProperties,
   TractsGeoJson,
 } from "@/lib/artifacts";
+import type { ExploreDomainKey } from "@/lib/domain";
 
 import { featureAnchor, type Coordinate } from "./geometry";
 import {
@@ -40,7 +40,7 @@ export interface ScenarioLayerState {
 
 export interface AtlasLayerOptions {
   tracts: TractsGeoJson;
-  domain: DomainKey;
+  domain: ExploreDomainKey;
   metric: MapMetricKey;
   metricScale: MetricColorScale;
   selectedGeoids: readonly string[];
@@ -51,6 +51,7 @@ export interface AtlasLayerOptions {
     Polygon | MultiPolygon,
     { borough: string }
   > | null;
+  beforeBasemapLabels?: string | null;
 }
 
 interface SelectedMarker {
@@ -125,7 +126,11 @@ export function createAtlasLayers(options: AtlasLayerOptions): Layer[] {
     neighborhood,
     scenario,
     boroughBoundaries,
+    beforeBasemapLabels,
   } = options;
+  const belowBasemapLabels = beforeBasemapLabels
+    ? { beforeId: beforeBasemapLabels }
+    : {};
   const selectedSet = new Set(selectedGeoids);
   const activeFeature = activeGeoid
     ? tracts.features.find(
@@ -144,45 +149,9 @@ export function createAtlasLayers(options: AtlasLayerOptions): Layer[] {
     typeof activeNeighborhoodValue === "number"
       ? activeNeighborhoodValue
       : null;
-
-  const layers: Layer[] = [
-    new GeoJsonLayer<TractFeatureProperties>({
-      id: `atlas-tract-fill-${domain}-${metric}-${neighborhood ? "context" : "city"}`,
-      data: tracts,
-      pickable: true,
-      autoHighlight: true,
-      highlightColor: [255, 255, 255, 70],
-      filled: true,
-      stroked: true,
-      lineWidthUnits: "pixels",
-      lineWidthMinPixels: 0.35,
-      getLineWidth: 0.55,
-      getLineColor: MAP_COLORS.tractLine,
-      getFillColor: (feature) => {
-        if (!neighborhood) {
-          return getFeatureColor(feature as TractFeature, domain, metric, metricScale);
-        }
-        if (!neighborhood.includedGeoids.has(feature.properties.geoid)) {
-          return MAP_COLORS.ghost;
-        }
-        const datum = getMapMetricDatum(
-          feature.properties,
-          domain,
-          neighborhood.metric,
-        );
-        return neighborhoodColor(
-          typeof datum.value === "number" ? datum.value : null,
-          activeNumericValue,
-        );
-      },
-      updateTriggers: {
-        getFillColor: [domain, metric, metricScale, neighborhood, activeNumericValue],
-      },
-    }),
-  ];
-
+  let scenarioSet = new Set<string>();
   if (scenario) {
-    let scenarioSet = new Set([
+    scenarioSet = new Set([
       ...scenario.currentGeoids,
       ...(scenario.pinnedGeoids ?? []),
     ]);
@@ -195,27 +164,61 @@ export function createAtlasLayers(options: AtlasLayerOptions): Layer[] {
         ),
       );
     }
-    layers.push(
-      new GeoJsonLayer<TractFeatureProperties>({
-        id: "atlas-scenario-overlay",
-        data: selectedFeatures(tracts, scenarioSet),
-        pickable: false,
-        filled: true,
-        stroked: true,
-        lineWidthUnits: "pixels",
-        lineWidthMinPixels: 1,
-        getLineWidth: 1,
-        getFillColor: (feature) =>
-          scenarioColor(feature.properties.geoid, scenario),
-        getLineColor: (feature) =>
-          scenarioLineColor(feature.properties.geoid, scenario),
-        updateTriggers: {
-          getFillColor: [scenario],
-          getLineColor: [scenario],
-        },
-      }),
-    );
   }
+
+  const layers: Layer[] = [
+    new GeoJsonLayer<TractFeatureProperties>({
+      ...belowBasemapLabels,
+      id: `atlas-tract-fill-${domain}-${metric}-${neighborhood ? "context" : "city"}`,
+      data: tracts,
+      pickable: true,
+      autoHighlight: true,
+      highlightColor: [255, 255, 255, 70],
+      filled: true,
+      stroked: true,
+      lineWidthUnits: "pixels",
+      lineWidthMinPixels: 0.35,
+      getLineWidth: (feature) =>
+        scenario && scenarioSet.has(feature.properties.geoid) ? 1 : 0.55,
+      getLineColor: (feature) =>
+        scenario && scenarioSet.has(feature.properties.geoid)
+          ? scenarioLineColor(feature.properties.geoid, scenario)
+          : MAP_COLORS.tractLine,
+      getFillColor: (feature) => {
+        const geoid = feature.properties.geoid;
+        if (neighborhood && !neighborhood.includedGeoids.has(geoid)) {
+          return MAP_COLORS.ghost;
+        }
+        if (scenario && scenarioSet.has(geoid)) {
+          return scenarioColor(geoid, scenario);
+        }
+        if (!neighborhood) {
+          return getFeatureColor(feature as TractFeature, domain, metric, metricScale);
+        }
+        const datum = getMapMetricDatum(
+          feature.properties,
+          domain,
+          neighborhood.metric,
+        );
+        return neighborhoodColor(
+          typeof datum.value === "number" ? datum.value : null,
+          activeNumericValue,
+        );
+      },
+      updateTriggers: {
+        getFillColor: [
+          domain,
+          metric,
+          metricScale,
+          neighborhood,
+          activeNumericValue,
+          scenario,
+        ],
+        getLineColor: [scenario],
+        getLineWidth: [scenario],
+      },
+    }),
+  ];
 
   if (boroughBoundaries) {
     layers.push(

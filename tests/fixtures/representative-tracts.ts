@@ -6,6 +6,8 @@ interface TractProperties {
   geoid: string;
   tractName: string;
   borough: string;
+  population: number | null;
+  medianHouseholdIncome: number | null;
   allocationEligible: boolean;
   queenNeighborGeoids: string[];
   housingBuildingComplaintCount: number;
@@ -80,6 +82,12 @@ export const REPRESENTATIVE_TRACTS = {
     ({ properties }) => !properties.allocationEligible,
     "allocation-ineligible tract",
   ),
+  missingDemographics: required(
+    ({ properties }) =>
+      properties.population === null &&
+      properties.medianHouseholdIncome === null,
+    "tract with unavailable population and income",
+  ),
   island: required(
     ({ properties }) => properties.queenNeighborGeoids.length === 0,
     "Queen island",
@@ -145,6 +153,44 @@ function pointInPolygon(point: Coordinate, polygon: readonly Position[][]): bool
   return polygon.slice(1).every((hole) => !pointInRing(point, hole));
 }
 
+function segmentDistanceSquared(
+  point: Coordinate,
+  start: Coordinate,
+  end: Coordinate,
+): number {
+  const dx = end[0] - start[0];
+  const dy = end[1] - start[1];
+  if (dx === 0 && dy === 0) {
+    return (point[0] - start[0]) ** 2 + (point[1] - start[1]) ** 2;
+  }
+  const ratio = Math.max(
+    0,
+    Math.min(
+      1,
+      ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) /
+        (dx ** 2 + dy ** 2),
+    ),
+  );
+  const projected: Coordinate = [start[0] + ratio * dx, start[1] + ratio * dy];
+  return (point[0] - projected[0]) ** 2 + (point[1] - projected[1]) ** 2;
+}
+
+function polygonClearanceSquared(
+  point: Coordinate,
+  polygon: readonly Position[][],
+): number {
+  let minimum = Number.POSITIVE_INFINITY;
+  for (const ring of polygon) {
+    for (let index = 0; index < ring.length; index += 1) {
+      const start = ring[index];
+      const end = ring[(index + 1) % ring.length];
+      if (!isCoordinate(start) || !isCoordinate(end)) continue;
+      minimum = Math.min(minimum, segmentDistanceSquared(point, start, end));
+    }
+  }
+  return minimum;
+}
+
 /** A deterministic point guaranteed to fall inside the actual exported geometry. */
 export function tractInteriorPoint(feature: TractFixture): Coordinate {
   const polygons = feature.geometry.type === "Polygon"
@@ -159,16 +205,24 @@ export function tractInteriorPoint(feature: TractFixture): Coordinate {
     const maximumX = Math.max(...xs);
     const minimumY = Math.min(...ys);
     const maximumY = Math.max(...ys);
-    for (let resolution = 7; resolution <= 31; resolution += 8) {
+    for (let resolution = 31; resolution >= 7; resolution -= 8) {
+      const candidates: Coordinate[] = [];
       for (let row = 0; row < resolution; row += 1) {
         for (let column = 0; column < resolution; column += 1) {
-          const candidate: Coordinate = [
+          candidates.push([
             minimumX + ((column + 0.5) / resolution) * (maximumX - minimumX),
             minimumY + ((row + 0.5) / resolution) * (maximumY - minimumY),
-          ];
-          if (pointInPolygon(candidate, polygon)) return candidate;
+          ]);
         }
       }
+      const interior = candidates
+        .filter((candidate) => pointInPolygon(candidate, polygon))
+        .sort(
+          (left, right) =>
+            polygonClearanceSquared(right, polygon) -
+            polygonClearanceSquared(left, polygon),
+        )[0];
+      if (interior) return interior;
     }
   }
   throw new Error(`Could not derive an interior point for ${feature.properties.geoid}.`);

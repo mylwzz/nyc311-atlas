@@ -11,6 +11,9 @@
 }
 
 .title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0 0 0.55rem;
   color: #514e48;
   font-size: 0.69rem;

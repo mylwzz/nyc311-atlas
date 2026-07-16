@@ -1,12 +1,14 @@
 import {
   ALPHA_VALUES,
   DOMAIN_KEYS,
+  EXPLORE_DOMAIN_KEYS,
   K_VALUES,
   MAP_METRICS,
   NEIGHBORHOOD_METRICS,
   SCALING_MODES,
   type AlphaValue,
   type DomainKey,
+  type ExploreDomainKey,
   type KValue,
   type MapMetric,
   type NeighborhoodMetric,
@@ -18,6 +20,7 @@ import type { AtlasState } from "@/lib/state/store";
 export interface ShareableState {
   workspace?: Workspace;
   activeDomain?: DomainKey;
+  exploreDomain?: ExploreDomainKey;
   activeMapMetric?: MapMetric;
   selectedGeoids?: string[];
   activeGeoid?: string | null;
@@ -59,6 +62,8 @@ export function parseShareableState(params: URLSearchParams): ShareableState {
     "workload",
   ] as const);
   const activeDomain = oneOf(params.get("domain"), DOMAIN_KEYS);
+  const exploreDomain =
+    oneOf(params.get("exploreDomain"), EXPLORE_DOMAIN_KEYS) ?? activeDomain;
   const activeMapMetric = oneOf(params.get("metric"), MAP_METRICS);
   const selectedGeoids = (params.get("tracts") ?? "")
     .split(",")
@@ -90,6 +95,7 @@ export function parseShareableState(params: URLSearchParams): ShareableState {
   return {
     workspace,
     activeDomain,
+    exploreDomain,
     activeMapMetric,
     selectedGeoids: selectedGeoids.length ? selectedGeoids : undefined,
     activeGeoid,
@@ -122,6 +128,7 @@ export function serializeShareableState(
     AtlasState,
     | "workspace"
     | "activeDomain"
+    | "exploreDomain"
     | "activeMapMetric"
     | "selectedGeoids"
     | "activeGeoid"
@@ -134,6 +141,8 @@ export function serializeShareableState(
   if (state.workspace !== "explore") params.set("workspace", state.workspace);
   if (state.activeDomain !== "housing_building")
     params.set("domain", state.activeDomain);
+  if (state.exploreDomain !== state.activeDomain)
+    params.set("exploreDomain", state.exploreDomain);
   if (state.activeMapMetric !== "complaint_intensity")
     params.set("metric", state.activeMapMetric);
   if (state.selectedGeoids.length)

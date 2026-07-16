@@ -92,15 +92,17 @@ export function ScenarioScoreExplanation({
 
       {!explanation ? (
         <p className="helper-text">
-          Choose a tract to inspect the exact deterministic score components,
-          rank, cutoff, and selection membership.
+          Choose a tract to see whether it surfaces and why. Exact score
+          components remain available in technical details.
         </p>
       ) : explanation.allocationEligible ? (
         <>
           <div className={styles.scoreIdentity}>
             <div>
-              <span className="eyebrow">Deterministic score</span>
-              <strong>{formatScore(explanation.score)}</strong>
+              <span className="eyebrow">Rank among eligible tracts</span>
+              <strong>
+                {explanation.rank?.toLocaleString("en-US") ?? "Not available"}
+              </strong>
             </div>
             <span
               className={`${styles.membershipBadge} ${
@@ -108,63 +110,83 @@ export function ScenarioScoreExplanation({
               }`}
             >
               {explanation.isSelected
-                ? "In this selection scenario"
-                : "Outside this selection scenario"}
+                ? "Surfaced by this definition"
+                : "Not surfaced by this definition"}
             </span>
           </div>
-          <table className="data-table">
-            <tbody>
-              <tr>
-                <th scope="row">
-                  Complaint-intensity {scenario.scalingMode === "rank_balanced" ? "percentile" : "z-score"}
-                </th>
-                <td>{formatScore(explanation.intensityValue)}</td>
-              </tr>
-              <tr>
-                <th scope="row">Complaint-intensity contribution</th>
-                <td>
-                  {explanation.alphaIntensity.toFixed(1)} × {formatScore(explanation.intensityValue)} ={" "}
-                  {formatScore(explanation.intensityContribution)}
-                </td>
-              </tr>
-              <tr>
-                <th scope="row">
-                  Lower-income {scenario.scalingMode === "rank_balanced" ? "percentile" : "z-score"}
-                </th>
-                <td>{formatScore(explanation.lowerIncomeValue)}</td>
-              </tr>
-              <tr>
-                <th scope="row">Lower-income contribution</th>
-                <td>
-                  {explanation.alphaLowerIncome.toFixed(1)} × {formatScore(explanation.lowerIncomeValue)} ={" "}
-                  {formatScore(explanation.lowerIncomeContribution)}
-                </td>
-              </tr>
-              <tr>
-                <th scope="row">Rank among eligible tracts</th>
-                <td>{explanation.rank?.toLocaleString("en-US")}</td>
-              </tr>
-              <tr>
-                <th scope="row">Selection cutoff score</th>
-                <td>{formatScore(explanation.selectionCutoffScore)}</td>
-              </tr>
-              <tr>
-                <th scope="row">Distance from cutoff</th>
-                <td>
-                  {explanation.distanceFromSelectionCutoff === null
-                    ? "Not available"
-                    : `${explanation.distanceFromSelectionCutoff >= 0 ? "+" : "−"}${formatScore(
-                        Math.abs(explanation.distanceFromSelectionCutoff),
-                      )}`}
-                </td>
-              </tr>
-            </tbody>
-          </table>
           <p className="helper-text">
-            Score = complaint-intensity contribution + lower-income contribution.
-            Ties are ordered by GEOID. This explanation does not change manual
-            tract comparison selection.
+            The selected scoring approach scales complaint intensity and
+            lower-income priority, blends them at the chosen balance, then
+            ranks every eligible tract. This explanation does not change the
+            map comparison selection.
           </p>
+          <details className="disclosure">
+            <summary>Technical score calculation</summary>
+            <table className="data-table">
+              <tbody>
+                <tr>
+                  <th scope="row">Deterministic score</th>
+                  <td>{formatScore(explanation.score)}</td>
+                </tr>
+                <tr>
+                  <th scope="row">
+                    Complaint-intensity{" "}
+                    {scenario.scalingMode === "rank_balanced"
+                      ? "percentile"
+                      : "z-score"}
+                  </th>
+                  <td>{formatScore(explanation.intensityValue)}</td>
+                </tr>
+                <tr>
+                  <th scope="row">Complaint-intensity contribution</th>
+                  <td>
+                    {explanation.alphaIntensity.toFixed(1)} ×{" "}
+                    {formatScore(explanation.intensityValue)} ={" "}
+                    {formatScore(explanation.intensityContribution)}
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">
+                    Lower-income{" "}
+                    {scenario.scalingMode === "rank_balanced"
+                      ? "percentile"
+                      : "z-score"}
+                  </th>
+                  <td>{formatScore(explanation.lowerIncomeValue)}</td>
+                </tr>
+                <tr>
+                  <th scope="row">Lower-income contribution</th>
+                  <td>
+                    {explanation.alphaLowerIncome.toFixed(1)} ×{" "}
+                    {formatScore(explanation.lowerIncomeValue)} ={" "}
+                    {formatScore(explanation.lowerIncomeContribution)}
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">Selection cutoff score</th>
+                  <td>{formatScore(explanation.selectionCutoffScore)}</td>
+                </tr>
+                <tr>
+                  <th scope="row">Distance from cutoff</th>
+                  <td>
+                    {explanation.distanceFromSelectionCutoff === null
+                      ? "Not available"
+                      : `${
+                          explanation.distanceFromSelectionCutoff >= 0
+                            ? "+"
+                            : "−"
+                        }${formatScore(
+                          Math.abs(explanation.distanceFromSelectionCutoff),
+                        )}`}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="helper-text">
+              Score = complaint-intensity contribution + lower-income
+              contribution. Ties are ordered by GEOID.
+            </p>
+          </details>
         </>
       ) : (
         <div className="status-box">

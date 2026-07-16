@@ -1,20 +1,30 @@
 "use client";
 
-import { useMemo } from "react";
-
+import { TractSearch } from "@/components/map/TractSearch";
 import type { TractFeature } from "@/lib/artifacts/schemas";
-import { DOMAIN_CONFIG, DOMAIN_KEYS, type DomainKey } from "@/lib/domain";
 import {
-  MAP_METRIC_KEYS,
+  DOMAIN_KEYS,
+  EXPLORE_DOMAIN_CONFIG,
+  EXPLORE_DOMAIN_KEYS,
+  isDomainKey,
+  type DomainKey,
+  type ExploreDomainKey,
+} from "@/lib/domain";
+import {
   MAP_METRICS,
+  isMapMetricCompatibleWithExploreDomain,
+  mapMetricsForExploreDomain,
   type MapMetricKey,
 } from "@/lib/map/metrics";
 
 export interface MapControlsProps {
-  domain: DomainKey;
+  domain: ExploreDomainKey;
   metric: MapMetricKey;
   features: readonly TractFeature[];
+  /** Keeps the five-domain analytical selection synchronized. */
   onDomainChange: (domain: DomainKey) => void;
+  /** Enables and owns the Explore-only Collective selection. */
+  onExploreDomainChange?: (domain: ExploreDomainKey) => void;
   onMetricChange: (metric: MapMetricKey) => void;
   onSelectTract: (geoid: string) => void;
 }
@@ -24,20 +34,14 @@ export function MapControls({
   metric,
   features,
   onDomainChange,
+  onExploreDomainChange,
   onMetricChange,
   onSelectTract,
 }: MapControlsProps) {
-  const sortedFeatures = useMemo(
-    () => [...features].sort((left, right) =>
-      left.properties.borough.localeCompare(right.properties.borough) ||
-      left.properties.tractName.localeCompare(
-        right.properties.tractName,
-        undefined,
-        { numeric: true },
-      ),
-    ),
-    [features],
-  );
+  const domainKeys = onExploreDomainChange
+    ? EXPLORE_DOMAIN_KEYS
+    : DOMAIN_KEYS;
+  const metricKeys = mapMetricsForExploreDomain(domain);
 
   return (
     <div className="map-controls" aria-label="Map controls">
@@ -50,11 +54,18 @@ export function MapControls({
             id="domain-control"
             className="select"
             value={domain}
-            onChange={(event) => onDomainChange(event.target.value as DomainKey)}
+            onChange={(event) => {
+              const nextDomain = event.target.value as ExploreDomainKey;
+              onExploreDomainChange?.(nextDomain);
+              if (isDomainKey(nextDomain)) onDomainChange(nextDomain);
+              if (!isMapMetricCompatibleWithExploreDomain(nextDomain, metric)) {
+                onMetricChange("complaint_intensity");
+              }
+            }}
           >
-            {DOMAIN_KEYS.map((key) => (
+            {domainKeys.map((key) => (
               <option key={key} value={key}>
-                {DOMAIN_CONFIG[key].label}
+                {EXPLORE_DOMAIN_CONFIG[key].label}
               </option>
             ))}
           </select>
@@ -69,37 +80,18 @@ export function MapControls({
             value={metric}
             onChange={(event) => onMetricChange(event.target.value as MapMetricKey)}
           >
-            {MAP_METRIC_KEYS.map((key) => (
+            {metricKeys.map((key) => (
               <option key={key} value={key}>
                 {MAP_METRICS[key].shortLabel}
               </option>
             ))}
           </select>
         </div>
-        <div className="field-stack">
-          <label className="field-label" htmlFor="tract-search">
-            Keyboard tract selection
-          </label>
-          <select
-            id="tract-search"
-            className="select"
-            defaultValue=""
-            onChange={(event) => {
-              if (event.target.value) onSelectTract(event.target.value);
-              event.target.value = "";
-            }}
-          >
-            <option value="">Find a census tract…</option>
-            {sortedFeatures.map((feature) => (
-              <option
-                key={feature.properties.geoid}
-                value={feature.properties.geoid}
-              >
-                Census Tract {feature.properties.tractName}, {feature.properties.borough}
-              </option>
-            ))}
-          </select>
-        </div>
+        <TractSearch
+          features={features}
+          placeholder="Search tract, GEOID, or borough"
+          onSelect={(result) => onSelectTract(result.geoid)}
+        />
       </div>
     </div>
   );
