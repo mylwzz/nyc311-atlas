@@ -1,6 +1,6 @@
 # NYC 311 Priority Atlas
 
-**Live:** [_Production URL pending deployment._](https://nyc311-priority-atlas.vercel.app/)
+**Live:** [Link](https://nyc311-priority-atlas.vercel.app/)
 
 NYC 311 Priority Atlas is a map-first product that links historical 311 requests with census-tract population, income, geography, neighborhood context, transparent priority scenarios, and workload aging. It is for public agencies, nonprofits, researchers, and community organizations that need a shared way to compare places, test assumptions, and frame questions for deeper investigation—not a live operations dashboard or recommendation engine.
 
