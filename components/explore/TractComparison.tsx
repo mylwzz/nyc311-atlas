@@ -207,7 +207,7 @@ function RankedDetail({
   }>;
   noun: string;
   valueNoun?: string;
-  explanation?: string;
+  explanation?: ReactNode;
 }) {
   return (
     <div>
@@ -330,7 +330,14 @@ function ComplaintComposition({
                   }))}
                   noun="agencies"
                   valueNoun="requests"
-                  explanation="Each count is the number of mapped requests whose 311 record names that agency; the percentage is its share of requests in this tract and domain. It does not measure agency availability or completed work."
+                  explanation={
+                    <>
+                      Each count is the number of mapped requests whose 311 record
+                      deems responsible for the complaint; percentage is its share
+                      of requests in this tract and domain. It does{" "}
+                      <em>not</em> measure agency availability or completed work.
+                    </>
+                  }
                 />
               )}
             </div>
