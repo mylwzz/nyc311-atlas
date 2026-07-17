@@ -94,7 +94,7 @@ describe("Collective Explore domain", () => {
     ).toBeNull();
   });
 
-  it("combines detail counts, recomputes shares, and retains complaint-domain provenance", () => {
+  it("combines complaint-type counts while keeping agency detail domain-specific", () => {
     const composition = getComplaintCompositionPresentation(
       detail(),
       properties(),
@@ -107,13 +107,19 @@ describe("Collective Explore domain", () => {
       count: 50,
     });
     expect(composition.complaintTypes[0]?.sharePct).toBeCloseTo(50 / 1.5);
-    expect(composition.agencies[0]).toMatchObject({
-      agency: "NYPD",
-      fullName: "New York City Police Department",
-      count: 60,
-      sharePct: 40,
+    expect(composition.agencies).toEqual([]);
+
+    const housing = getComplaintCompositionPresentation(
+      detail(),
+      properties(),
+      "housing_building",
+    );
+    expect(housing.agencies[0]).toMatchObject({
+      agency: "HPD",
+      fullName: "Department of Housing Preservation and Development",
+      count: 20,
+      sharePct: 100,
     });
-    expect(composition.agencies[0]?.sharePct).not.toBe(100);
   });
 
   it("expands curated agency codes without inventing names for unknown codes", () => {

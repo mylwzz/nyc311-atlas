@@ -318,7 +318,7 @@ test.describe("launch-critical Atlas workflows", () => {
     await setRange(page.locator("#closure-shift"), 5);
     await expect(page.locator('output[for="demand-change"]')).toHaveText("+20.0%");
     await expect(page.locator('output[for="closure-shift"]')).toHaveText(
-      "+5.0 percentage points",
+      "+5.0 pts",
     );
     await expect(
       page.getByRole("heading", { name: "Assumption-based workload scenario" }),

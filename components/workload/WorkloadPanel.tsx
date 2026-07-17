@@ -449,6 +449,9 @@ export function WorkloadPanel(props: WorkloadPanelProps) {
                 {formatSigned(demandChangePct, "%")}
               </output>
             </div>
+            <p className="helper-text">
+              The arrival change applies to every historical period.
+            </p>
           </div>
           <div className="field-stack">
             <div className={styles.labelWithHelp}>
@@ -466,12 +469,12 @@ export function WorkloadPanel(props: WorkloadPanelProps) {
                 </p>
               </InfoMarker>
             </div>
-            <div className={`range-row ${styles.closureRange}`}>
+            <div className="range-row">
               <input
                 id="closure-shift"
                 type="range"
                 min={-15}
-                max={30}
+                max={15}
                 step={1}
                 value={closureCurveShiftPoints}
                 onChange={(event) =>
@@ -479,18 +482,15 @@ export function WorkloadPanel(props: WorkloadPanelProps) {
                 }
               />
               <output className="range-value" htmlFor="closure-shift">
-                {formatSigned(
-                  closureCurveShiftPoints,
-                  " percentage points",
-                )}
+                {formatSigned(closureCurveShiftPoints, " pts")}
               </output>
             </div>
+            <p className="helper-text">
+              The closure change adds the stated percentage points at every
+              request-age checkpoint and clamps each probability to 0–1
+              (0%–100%).
+            </p>
           </div>
-          <p className="helper-text">
-            The arrival change applies to every historical period. The closure
-            change adds the stated percentage points at every request-age
-            checkpoint and clamps each probability to 0–1 (0%–100%).
-          </p>
         </section>
       ) : null}
 

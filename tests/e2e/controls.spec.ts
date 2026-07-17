@@ -42,6 +42,9 @@ test.describe("interactive control audit", () => {
     await expect(page.getByRole("dialog", { name: "Data notes" })).toContainText(
       "Per 1,000 residents",
     );
+    await expect(page.getByRole("dialog", { name: "Data notes" })).toContainText(
+      "Agency counts",
+    );
     await page
       .getByRole("dialog", { name: "Data notes" })
       .getByRole("button", { name: "Read the method" })
@@ -98,6 +101,15 @@ test.describe("interactive control audit", () => {
     await expect(page.getByRole("columnheader", { name: "Domain" })).toBeVisible();
     await openSummary(page, "Complaint types and agencies");
     await expect(page.getByText("Top complaint types")).toBeVisible();
+    await expect(
+      page.getByText("Top agencies by request count", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/Each count is the number of mapped requests/),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/^\d[\d,]* requests · \d+\.\d%$/).first(),
+    ).toBeVisible();
     await openSummary(page, "Closure timing details");
     await expect(
       page
@@ -156,8 +168,9 @@ test.describe("interactive control audit", () => {
     );
     const composition = compositionSummary.locator("..");
     await expect(composition.locator("[class*='domainTag']").first()).toBeVisible();
-    const dob = composition.locator('[title="Department of Buildings"]').first();
-    await expect(dob).toHaveText("DOB");
+    await expect(composition).toContainText(
+      "Exact agency totals are available within each service domain",
+    );
 
     await page.getByRole("tab", { name: "Prioritize" }).click();
     await expect(panel).toContainText(
@@ -182,6 +195,8 @@ test.describe("interactive control audit", () => {
 
     await page.locator("#domain-control").selectOption("housing_building");
     await expect(composition.locator("[class*='domainTag']")).toHaveCount(0);
+    const dob = composition.locator('[title="Department of Buildings"]').first();
+    await expect(dob).toHaveText("DOB");
     await expect(panel).toContainText("Recorded response");
   });
 
@@ -271,8 +286,15 @@ test.describe("interactive control audit", () => {
     page,
   }) => {
     await openAtlas(page);
+    await selectTract(page, REPRESENTATIVE_TRACTS.sufficient);
     await page.getByRole("tab", { name: "Prioritize" }).click();
     await expect(page.getByText("100 tracts surfaced", { exact: true })).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("#scenario-explanation-tract")).toHaveValue(
+      REPRESENTATIVE_TRACTS.sufficient.properties.geoid,
+    );
+    await expect(
+      page.getByText("Rank among eligible tracts", { exact: true }),
+    ).toBeVisible();
 
     await page.getByRole("button", { name: "About the scoring approaches" }).click();
     await page
@@ -373,11 +395,34 @@ test.describe("interactive control audit", () => {
     await page.getByRole("button", { name: "Close methodology" }).click();
 
     await page.getByRole("button", { name: "What-if", exact: true }).click();
+    const arrivalAssumption = page.locator(".field-stack").filter({
+      has: page.locator("#demand-change"),
+    });
+    const closureAssumption = page.locator(".field-stack").filter({
+      has: page.locator("#closure-shift"),
+    });
+    await expect(arrivalAssumption).toContainText(
+      "The arrival change applies to every historical period.",
+    );
+    await expect(closureAssumption).toContainText(
+      "The closure change adds the stated percentage points at every request-age checkpoint",
+    );
+    await expect(page.locator("#closure-shift")).toHaveAttribute("min", "-15");
+    await expect(page.locator("#closure-shift")).toHaveAttribute("max", "15");
+    const [demandTrackWidth, closureTrackWidth] = await Promise.all([
+      page.locator("#demand-change").evaluate(
+        (element) => element.getBoundingClientRect().width,
+      ),
+      page.locator("#closure-shift").evaluate(
+        (element) => element.getBoundingClientRect().width,
+      ),
+    ]);
+    expect(Math.abs(demandTrackWidth - closureTrackWidth)).toBeLessThanOrEqual(1);
     await setRange(page.locator("#demand-change"), -30);
     await setRange(page.locator("#closure-shift"), 15);
     await expect(page.locator('output[for="demand-change"]')).toHaveText("−30.0%");
     await expect(page.locator('output[for="closure-shift"]')).toHaveText(
-      "+15.0 percentage points",
+      "+15.0 pts",
     );
     await openSummary(page, "Period and age-composition comparison");
     await expect(page.getByRole("columnheader", { name: "Arrival Δ" })).toBeVisible();

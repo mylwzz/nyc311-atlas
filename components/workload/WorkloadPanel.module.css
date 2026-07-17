@@ -49,10 +49,6 @@
   gap: 10px;
 }
 
-.closureRange {
-  grid-template-columns: minmax(0, 1fr) minmax(136px, auto);
-}
-
 .assumptionLabel {
   color: #825244;
   font-size: 8px;

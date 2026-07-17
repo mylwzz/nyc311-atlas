@@ -41,6 +41,7 @@ export interface ScenarioLabProps {
   alpha: AlphaValue;
   currentScenarioId?: string | null;
   pinnedScenarioId: string | null;
+  initialExplanationGeoid?: string | null;
   onLoad: () => void | Promise<unknown>;
   onControlsChange: (controls: Partial<ScenarioControlValues>) => void;
   onCurrentScenarioChange: (scenarioId: string | null) => void;
@@ -259,6 +260,7 @@ export function ScenarioLab({
   alpha,
   currentScenarioId,
   pinnedScenarioId,
+  initialExplanationGeoid = null,
   onLoad,
   onControlsChange,
   onCurrentScenarioChange,
@@ -465,6 +467,7 @@ export function ScenarioLab({
         <ScenarioScoreExplanation
           scenario={current}
           features={tracts.features}
+          initialGeoid={initialExplanationGeoid}
         />
       </div>
     </section>

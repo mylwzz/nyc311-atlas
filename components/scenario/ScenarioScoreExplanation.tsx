@@ -25,11 +25,18 @@ function formatScore(value: number | null): string {
 export function ScenarioScoreExplanation({
   scenario,
   features,
+  initialGeoid = null,
 }: {
   scenario: Scenario;
   features: readonly TractFeature[];
+  initialGeoid?: string | null;
 }) {
-  const [selectedGeoid, setSelectedGeoid] = useState("");
+  const [selectedGeoid, setSelectedGeoid] = useState(() =>
+    initialGeoid &&
+    features.some((feature) => feature.properties.geoid === initialGeoid)
+      ? initialGeoid
+      : "",
+  );
   const sortedFeatures = useMemo(
     () =>
       [...features].sort(

@@ -717,18 +717,22 @@ input:disabled {
 
 .range-row {
   display: grid;
-  grid-template-columns: 1fr 48px;
+  grid-template-columns: minmax(0, 1fr) 64px;
   align-items: center;
   gap: 10px;
 }
 
 input[type="range"] {
+  width: 100%;
+  min-width: 0;
   min-height: 44px;
 }
 
 .range-value {
+  width: 64px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .field-stack {

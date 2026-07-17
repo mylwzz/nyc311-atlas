@@ -60,7 +60,7 @@ const WORKSPACES: readonly {
   {
     key: "scenario",
     label: "Prioritize",
-    subtitle: "Test how different definitions of priority change which tracts rise.",
+    subtitle: "Rank tracts using complaint intensity and lower-income priority.",
   },
   {
     key: "workload",
@@ -867,6 +867,9 @@ function AtlasWorkspace() {
                 alpha={state.scenario.alpha}
                 currentScenarioId={state.scenario.currentScenarioId}
                 pinnedScenarioId={state.scenario.pinnedScenarioId}
+                initialExplanationGeoid={
+                  state.activeGeoid ?? state.selectedGeoids.at(-1) ?? null
+                }
                 onLoad={loadScenarios}
                 onControlsChange={state.setScenarioControls}
                 onCurrentScenarioChange={state.setCurrentScenario}
