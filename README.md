@@ -6,7 +6,7 @@ NYC 311 Priority Atlas is a map-first product that links historical 311 requests
 
 ![NYC 311 Priority Atlas Explore workspace](tests/e2e/visual.spec.ts-snapshots/atlas-default-chromium-darwin.png)
 
-## How Claude is used
+## LLM-Enabled, not dependent
 
 All statistics are computed deterministically before Claude is called. Claude receives those results as locked reference tokens, and server guardrails reject any response containing a number it was not handed. It can explain figures, compare supplied context, and draft clearly labeled hypotheses, but it cannot replace a calculation, change scenario membership, or apply a proposed interface action without the user pressing **Apply**. Claude interprets figures; it never generates them. Without an API key, every manual workflow still works.
 
